@@ -1,89 +1,472 @@
-from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
-
-
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+import os
+import uuid
+import logging
+import bcrypt
+import jwt
+import httpx
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional, Literal
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, EmailStr, Field
+
+# --- DB ---
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+# --- JWT ---
+JWT_ALG = "HS256"
 
-# Create a router with the /api prefix
+def get_jwt_secret() -> str:
+    return os.environ["JWT_SECRET"]
+
+def hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def verify_password(pw: str, hashed: str) -> bool:
+    return bcrypt.checkpw(pw.encode("utf-8"), hashed.encode("utf-8"))
+
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    payload = {"sub": user_id, "email": email, "role": role,
+               "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "access"}
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALG)
+
+def set_auth_cookie(response: Response, token: str):
+    response.set_cookie(
+        key="access_token", value=token, httponly=True,
+        secure=False, samesite="lax", max_age=604800, path="/"
+    )
+
+# --- App / router ---
+app = FastAPI(title="AutoVisor API")
 api_router = APIRouter(prefix="/api")
 
+# --- Models ---
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6)
+    full_name: str
+    cpf: str
+    phone: str
+    cep: str
+    address_street: str
+    address_number: str
+    address_complement: Optional[str] = ""
+    address_neighborhood: str
+    address_city: str
+    address_state: str
+    birth_date: Optional[str] = None
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+class UserOut(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    cpf: str
+    phone: str
+    cep: str
+    address_street: str
+    address_number: str
+    address_complement: Optional[str] = ""
+    address_neighborhood: str
+    address_city: str
+    address_state: str
+    birth_date: Optional[str] = None
+    role: str
+    created_at: str
 
-# Add your routes to the router instead of directly to app
+class CartItemIn(BaseModel):
+    product_id: str
+    quantity: int = Field(ge=1)
+
+class ShippingIn(BaseModel):
+    full_name: str
+    cpf: str
+    birth_date: str
+    phone: str
+    cep: str
+    street: str
+    number: str
+    complement: Optional[str] = ""
+    neighborhood: str
+    city: str
+    state: str
+
+class CardIn(BaseModel):
+    holder_name: str
+    number: str
+    expiry: str
+    cvv: str
+    installments: int = 1
+
+class OrderCreateIn(BaseModel):
+    items: List[CartItemIn]
+    payment_method: Literal["pix", "card"]
+    shipping: ShippingIn
+    card: Optional[CardIn] = None
+
+# --- Auth dependency ---
+async def get_current_user(request: Request) -> dict:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALG])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Sessão expirada")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário não encontrado")
+    return user
+
+async def admin_required(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
+    return user
+
+# --- Auth endpoints ---
+@api_router.post("/auth/register", response_model=UserOut)
+async def register(payload: RegisterIn, response: Response):
+    email = payload.email.lower().strip()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=409, detail="Este e-mail já está cadastrado")
+    user_id = str(uuid.uuid4())
+    doc = {
+        "id": user_id,
+        "email": email,
+        "password_hash": hash_password(payload.password),
+        "full_name": payload.full_name.strip(),
+        "cpf": payload.cpf.strip(),
+        "phone": payload.phone.strip(),
+        "cep": payload.cep.strip(),
+        "address_street": payload.address_street.strip(),
+        "address_number": payload.address_number.strip(),
+        "address_complement": (payload.address_complement or "").strip(),
+        "address_neighborhood": payload.address_neighborhood.strip(),
+        "address_city": payload.address_city.strip(),
+        "address_state": payload.address_state.strip(),
+        "birth_date": payload.birth_date or "",
+        "role": "customer",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(doc)
+    token = create_access_token(user_id, email, "customer")
+    set_auth_cookie(response, token)
+    doc.pop("password_hash", None)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.post("/auth/login", response_model=UserOut)
+async def login(payload: LoginIn, response: Response):
+    email = payload.email.lower().strip()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not verify_password(payload.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+    token = create_access_token(user["id"], user["email"], user.get("role", "customer"))
+    set_auth_cookie(response, token)
+    user.pop("password_hash", None)
+    return user
+
+@api_router.post("/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    return {"ok": True}
+
+@api_router.get("/auth/me", response_model=UserOut)
+async def me(user: dict = Depends(get_current_user)):
+    return user
+
+# --- Products ---
+PRODUCTS = [
+    {
+        "id": "hud-c3-navigation",
+        "slug": "hud-c3-navigation",
+        "name": "HUD C3 — Edição Navegação",
+        "tagline": "GPS + OBD com navegação inteligente e alerta de velocidade por IA",
+        "edition": "navigation",
+        "price": 29700,  # cents
+        "compare_price": 49700,
+        "stock": 25,
+        "rating": 4.8,
+        "reviews": 1247,
+        "short_description": (
+            "Head-Up Display automotivo C3 com sistema híbrido OBD+GPS. "
+            "Projeta dados do veículo e navegação direto no para-brisa, "
+            "com alertas inteligentes de excesso de velocidade."
+        ),
+        "highlights": [
+            "Navegação por GPS integrada (Google Maps)",
+            "Leitura OBD-II do computador de bordo",
+            "Alerta inteligente de excesso de velocidade (IA)",
+            "Tela colorida HD anti-reflexo",
+            "Compatível com 99% dos veículos pós-2008",
+        ],
+        "specs": {
+            "Modelo": "C3 Navigation Edition",
+            "Display": "Tela colorida TFT 2.2\" anti-reflexo",
+            "Conectividade": "OBD-II + GPS dedicado",
+            "Dados exibidos": "Velocidade, RPM, distância, tempo, direção",
+            "Alertas": "Excesso de velocidade por IA, atenção do motorista",
+            "Mapas": "Compatível com Google Maps",
+            "Alimentação": "12V via OBD-II (plug and play)",
+            "Idiomas": "Português, Inglês, Espanhol",
+            "Dimensões": "95 × 75 × 18 mm",
+            "Garantia": "12 meses",
+        },
+        "images": [
+            "https://ae-pic-a1.aliexpress-media.com/kf/S013b4f367f304469b5a4cbf34f5d7eb5d.jpg_960x960q75.jpg_.avif",
+            "https://ae-pic-a1.aliexpress-media.com/kf/S0c91bfa0d9cd48f0a927556fd0b264baN.jpg_960x960q75.jpg_.avif",
+            "https://ae-pic-a1.aliexpress-media.com/kf/S7558d387a52a4b16a00a610ec07f0500r.jpg_960x960q75.jpg_.avif",
+            "https://ae-pic-a1.aliexpress-media.com/kf/S0f5fb3a80dfd4994bdf290b76729b721A.jpg_960x960q75.jpg_.avif",
+        ],
+    },
+    {
+        "id": "hud-c3-alarms",
+        "slug": "hud-c3-alarms",
+        "name": "HUD C3 — Edição Multi-Alarmes",
+        "tagline": "Monitoramento completo do veículo com 6 alarmes inteligentes",
+        "edition": "alarms",
+        "price": 29700,
+        "compare_price": 49700,
+        "stock": 30,
+        "rating": 4.9,
+        "reviews": 982,
+        "short_description": (
+            "Mesma plataforma C3 com firmware focado em diagnóstico veicular. "
+            "Exibe RPM, temperatura, voltagem e dispara 6 alarmes inteligentes "
+            "para máxima segurança e prevenção."
+        ),
+        "highlights": [
+            "6 alarmes inteligentes (velocidade, RPM, voltagem, temperatura, fadiga, DTC)",
+            "Leitura em tempo real do OBD-II",
+            "Detecção de códigos de erro (DTC) do motor",
+            "Alerta de fadiga após 2h de direção",
+            "Tela colorida HD com gráficos de barras",
+        ],
+        "specs": {
+            "Modelo": "C3 Multi-Alarms Edition",
+            "Display": "Tela colorida TFT 2.2\" anti-reflexo",
+            "Conectividade": "OBD-II",
+            "Dados exibidos": "Velocidade, RPM, ECT, voltagem, consumo",
+            "Alarmes": "Excesso de velocidade, RPM alto, voltagem, temperatura, fadiga, DTC",
+            "Diagnóstico": "Leitura de códigos DTC do motor",
+            "Alimentação": "12V via OBD-II (plug and play)",
+            "Idiomas": "Português, Inglês, Espanhol",
+            "Dimensões": "95 × 75 × 18 mm",
+            "Garantia": "12 meses",
+        },
+        "images": [
+            "https://ae-pic-a1.aliexpress-media.com/kf/S57daa2e1cfe3446a91cc24df049549829.jpg_960x960q75.jpg_.avif",
+            "https://ae-pic-a1.aliexpress-media.com/kf/Sc8be146fedd54811ac950889fcaed29b1.jpg_960x960q75.jpg_.avif",
+            "https://ae-pic-a1.aliexpress-media.com/kf/S7558d387a52a4b16a00a610ec07f0500r.jpg_960x960q75.jpg_.avif",
+            "https://ae-pic-a1.aliexpress-media.com/kf/S0f5fb3a80dfd4994bdf290b76729b721A.jpg_960x960q75.jpg_.avif",
+        ],
+    },
+]
+
+PRODUCTS_BY_ID = {p["id"]: p for p in PRODUCTS}
+
+@api_router.get("/products")
+async def list_products():
+    return PRODUCTS
+
+@api_router.get("/products/{product_id}")
+async def get_product(product_id: str):
+    p = PRODUCTS_BY_ID.get(product_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    return p
+
+# --- ViaCEP proxy ---
+@api_router.get("/cep/{cep}")
+async def lookup_cep(cep: str):
+    clean = "".join(c for c in cep if c.isdigit())
+    if len(clean) != 8:
+        raise HTTPException(status_code=400, detail="CEP inválido")
+    async with httpx.AsyncClient(timeout=10) as cli:
+        r = await cli.get(f"https://viacep.com.br/ws/{clean}/json/")
+    data = r.json()
+    if data.get("erro"):
+        raise HTTPException(status_code=404, detail="CEP não encontrado")
+    return {
+        "cep": data.get("cep", ""),
+        "street": data.get("logradouro", ""),
+        "neighborhood": data.get("bairro", ""),
+        "city": data.get("localidade", ""),
+        "state": data.get("uf", ""),
+    }
+
+# --- Orders ---
+def _compute_total(items: List[CartItemIn], payment_method: str) -> dict:
+    subtotal = 0
+    detailed = []
+    for it in items:
+        p = PRODUCTS_BY_ID.get(it.product_id)
+        if not p:
+            raise HTTPException(status_code=400, detail=f"Produto inválido: {it.product_id}")
+        line = p["price"] * it.quantity
+        subtotal += line
+        detailed.append({
+            "product_id": p["id"],
+            "name": p["name"],
+            "edition": p["edition"],
+            "unit_price": p["price"],
+            "quantity": it.quantity,
+            "line_total": line,
+            "image": p["images"][0],
+        })
+    discount = 0
+    if payment_method == "pix":
+        discount = round(subtotal * 0.05)
+    shipping = 0  # free
+    total = subtotal - discount + shipping
+    return {
+        "items": detailed,
+        "subtotal": subtotal,
+        "discount": discount,
+        "shipping": shipping,
+        "total": total,
+    }
+
+@api_router.post("/orders")
+async def create_order(payload: OrderCreateIn, user: dict = Depends(get_current_user)):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Carrinho vazio")
+    if payload.payment_method == "card" and not payload.card:
+        raise HTTPException(status_code=400, detail="Dados do cartão obrigatórios")
+    totals = _compute_total(payload.items, payload.payment_method)
+    order_id = str(uuid.uuid4())
+    order_number = f"AV-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{order_id[:6].upper()}"
+    pix_code = None
+    if payload.payment_method == "pix":
+        pix_code = (
+            f"00020126360014BR.GOV.BCB.PIX0114+5511999998888"
+            f"52040000530398654{totals['total']/100:013.2f}5802BR5910AutoVisor"
+            f"6009Sao Paulo62070503{order_id[:5]}6304ABCD"
+        )
+    card_last4 = payload.card.number[-4:] if payload.card else None
+    doc = {
+        "id": order_id,
+        "order_number": order_number,
+        "user_id": user["id"],
+        "user_email": user["email"],
+        "items": totals["items"],
+        "subtotal": totals["subtotal"],
+        "discount": totals["discount"],
+        "shipping": totals["shipping"],
+        "total": totals["total"],
+        "payment_method": payload.payment_method,
+        "card_last4": card_last4,
+        "card_installments": payload.card.installments if payload.card else None,
+        "pix_code": pix_code,
+        "shipping_data": payload.shipping.model_dump(),
+        "status": "aguardando_pagamento" if payload.payment_method == "pix" else "pago",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.orders.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.get("/orders")
+async def my_orders(user: dict = Depends(get_current_user)):
+    docs = await db.orders.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
+
+@api_router.get("/orders/{order_id}")
+async def get_order(order_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if doc["user_id"] != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    return doc
+
+@api_router.get("/admin/orders")
+async def admin_orders(_: dict = Depends(admin_required)):
+    docs = await db.orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return docs
+
+@api_router.get("/admin/stats")
+async def admin_stats(_: dict = Depends(admin_required)):
+    docs = await db.orders.find({}, {"_id": 0}).to_list(2000)
+    revenue = sum(d.get("total", 0) for d in docs)
+    return {
+        "orders_count": len(docs),
+        "revenue_cents": revenue,
+        "users_count": await db.users.count_documents({}),
+    }
+
+# --- Misc ---
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "AutoVisor API", "ok": True}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=[os.environ.get("FRONTEND_URL", "*"), "http://localhost:3000"],
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+@app.on_event("startup")
+async def startup():
+    await db.users.create_index("email", unique=True)
+    await db.orders.create_index("user_id")
+    # Seed admin
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@autovisor.com.br")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@AutoVisor2026")
+    existing = await db.users.find_one({"email": admin_email})
+    if existing is None:
+        await db.users.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": admin_email,
+            "password_hash": hash_password(admin_password),
+            "full_name": "Administrador AutoVisor",
+            "cpf": "000.000.000-00",
+            "phone": "(11) 99999-9999",
+            "cep": "01000-000",
+            "address_street": "Av. Paulista",
+            "address_number": "1000",
+            "address_complement": "",
+            "address_neighborhood": "Bela Vista",
+            "address_city": "São Paulo",
+            "address_state": "SP",
+            "birth_date": "",
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info("Admin user seeded: %s", admin_email)
+    elif not verify_password(admin_password, existing["password_hash"]):
+        await db.users.update_one(
+            {"email": admin_email},
+            {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}}
+        )
+        logger.info("Admin user password updated")
+
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
     client.close()
