@@ -1,0 +1,161 @@
+{
+  "project_info": {
+    "brand_name": "AutoVisor",
+    "domain": "E-commerce (Premium Automotive Tech)",
+    "language": "pt-BR",
+    "theme": "Dark",
+    "archetype": "Archetype 4 (Swiss & High-Contrast) adapted for Tactical Precision",
+    "vibe": "Cinematic, moody, expensive, objective, highly technical, reliable."
+  },
+  "design_principles": [
+    "Fusion over Imitation: Mix tactical UI (aviation/dashboard) with premium high-end e-commerce layout.",
+    "Emotion First: The dark mode conveys night-driving focus and high-tech safety.",
+    "Contrast over Color: Color is purely functional. 95% of UI is deep monochrome, color is used for active states, warnings, and trust badges.",
+    "Zoom In: Use large, bold typography and massive product crops for high impact.",
+    "Safety & Trust: Clean, unambiguous forms, prominent security locks, and clear Brazilian payment options."
+  ],
+  "colors": {
+    "backgrounds": {
+      "app": "#050505",
+      "surface_base": "#0A0A0A",
+      "surface_elevated": "#121214"
+    },
+    "borders": {
+      "subtle": "rgba(255, 255, 255, 0.08)",
+      "medium": "rgba(255, 255, 255, 0.15)",
+      "strong": "rgba(255, 255, 255, 0.3)"
+    },
+    "typography": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "tertiary": "#71717A",
+      "inverse": "#050505"
+    },
+    "brand": {
+      "primary": "#FF9500",
+      "primary_hover": "#FFB340",
+      "primary_active": "#E08300"
+    },
+    "accents": {
+      "navigation_blue": "#0A84FF",
+      "alarm_red": "#FF453A"
+    },
+    "status": {
+      "success": "#32D74B",
+      "warning": "#FFD60A",
+      "error": "#FF453A",
+      "pix_brand": "#32BCAD"
+    }
+  },
+  "typography": {
+    "font_families": {
+      "heading": "'Outfit', sans-serif",
+      "body": "'Manrope', sans-serif",
+      "mono": "'JetBrains Mono', monospace"
+    },
+    "installation": "yarn add @fontsource/outfit @fontsource/manrope @fontsource/jetbrains-mono",
+    "scales": {
+      "h1": "text-5xl sm:text-6xl tracking-tighter leading-[1.1] font-medium",
+      "h2": "text-3xl sm:text-4xl tracking-tight leading-tight font-medium",
+      "h3": "text-xl sm:text-2xl tracking-tight leading-snug font-medium",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed tracking-normal",
+      "small_caps": "text-xs tracking-[0.2em] uppercase font-bold text-secondary"
+    },
+    "rules": [
+      "No Inter, Roboto, or Open Sans.",
+      "Never center paragraphs. Left-align for technical precision.",
+      "Use small_caps for overlines and data labels (e.g., 'ESPECIFICAÇÕES TÉCNICAS').",
+      "Ensure minimum 4.5:1 contrast ratio for all text."
+    ]
+  },
+  "spacing_and_layout": {
+    "generous_spacing": "Use p-8, p-12, p-16 for structural sections. Containers with borders need at least p-6.",
+    "hero_grid": "MODE A: Tetris Grid. grid-cols-1 md:grid-cols-12 gap-8. Hero image spans col-span-8, text/CTA col-span-4.",
+    "dashboard_bento": "MODE B: Control Room Grid. For technical specs and feature comparisons. grid-cols-1 md:grid-cols-3 gap-4. Every pixel utilized.",
+    "alignment": "Mobile-first, start with grid-cols-1. Optical alignment for icons inside buttons."
+  },
+  "surface_strategies": {
+    "header": "Crystal Glass: bg-black/60 backdrop-blur-xl border-b border-white/10. Must be sticky (z-50).",
+    "cards_and_bento": "Grid Borders: border-collapse style layout, sharp edges (rounded-none or max rounded-md), flat background (bg-surface_elevated), subtle 1px border (border-white/10). No soft shadows.",
+    "ctas": "Solid, high-contrast. bg-primary text-inverse font-bold. Hover: bg-primary_hover scale-[1.02] transition-transform.",
+    "forms": "Technical, secure look. bg-transparent border-b-2 border-white/10 rounded-none focus:border-primary focus:ring-0. Labels must be small_caps."
+  },
+  "components_and_interactions": {
+    "libraries": [
+      "lucide-react (icons)",
+      "framer-motion (animations)",
+      "shadcn/ui (highly customized for forms, select, dialogs)"
+    ],
+    "buttons": "Sharp corners (rounded-sm). Use lucide icons. Add data-testid to all buttons.",
+    "inputs": "Use Shadcn customized. Dark background, clear white text, primary focus color. Provide input masking logic for CPF (000.000.000-00), CEP (00000-000), Phone ((00) 00000-0000).",
+    "hover_states": "ALWAYS explicitly set text color on hover. Example: hover:bg-white hover:text-black.",
+    "animations": "Subtle, deliberate. Use framer-motion for page transitions and staggering bento grids. No bouncy or playful animations."
+  },
+  "media": {
+    "rules": [
+      "Hero Image Overlay: Max bg-black/50, or use gradient overlay.",
+      "No placeholders. Use only the URLs provided below."
+    ],
+    "hero_and_backgrounds": [
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/b3ea7832-b086-4d63-9cd1-1b92fdcc5067/images/15e092e20e85ba76efef25ec680a09f4979731840cf83b215fdec55d51d4cd24.png",
+        "description": "Main Hero Background: Cinematic night driving",
+        "placement": "Landing page hero section background"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1584310881889-93bc9c4577ff?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbW9kZXJuJTIwY2FyJTIwaW50ZXJpb3IlMjBuaWdodCUyMGRyaXZpbmd8ZW58MHx8fHwxNzc5NDMxNDQ5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Lifestyle Night Interior",
+        "placement": "About or Lifestyle section to build trust and vibe"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/b3ea7832-b086-4d63-9cd1-1b92fdcc5067/images/b6d6421847139a599b9b52f4a974b4e5042c58cef06ba211351fa8e27ca8fb75.png",
+        "description": "Premium Dark Texture",
+        "placement": "Background for specs or feature comparison table"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/b3ea7832-b086-4d63-9cd1-1b92fdcc5067/images/646768c1ca6cb68d5b5bacf0ae1b41a0131cd0aedba9048422ca32b2965c5236.png",
+        "description": "Tech Diagnostics Render",
+        "placement": "Background for the Multi-Alarms feature highlight"
+      }
+    ],
+    "products": {
+      "navigation_edition": [
+        "https://ae-pic-a1.aliexpress-media.com/kf/S013b4f367f304469b5a4cbf34f5d7eb5d.jpg_960x960q75.jpg_.avif"
+      ],
+      "multi_alarms_edition": [
+        "https://ae-pic-a1.aliexpress-media.com/kf/S57daa2e1cfe3446a91cc24df049549829.jpg_960x960q75.jpg_.avif"
+      ],
+      "shared_gallery": [
+        "https://ae-pic-a1.aliexpress-media.com/kf/S0c91bfa0d9cd48f0a927556fd0b264baN.jpg_960x960q75.jpg_.avif",
+        "https://ae-pic-a1.aliexpress-media.com/kf/Sc8be146fedd54811ac950889fcaed29b1.jpg_960x960q75.jpg_.avif",
+        "https://ae-pic-a1.aliexpress-media.com/kf/S7558d387a52a4b16a00a610ec07f0500r.jpg_960x960q75.jpg_.avif",
+        "https://ae-pic-a1.aliexpress-media.com/kf/S0f5fb3a80dfd4994bdf290b76729b721A.jpg_960x960q75.jpg_.avif"
+      ]
+    }
+  },
+  "domain_specific_requirements": {
+    "brazilian_ecommerce": {
+      "language": "All copy MUST be in Portuguese (pt-BR).",
+      "pricing": "Base price: R$ 297,00. Display clearly: 'R$ 282,15 com 5% de desconto no PIX'.",
+      "auth_and_checkout_fields": [
+        "Nome Completo (como no CPF)",
+        "E-mail",
+        "Telefone/Celular (com máscara)",
+        "CPF (com máscara e validação)",
+        "Data de Nascimento",
+        "CEP (Integração com ViaCEP para auto-completar endereço)",
+        "Endereço Completo (Rua, Número, Complemento, Bairro, Cidade, Estado)"
+      ],
+      "payment_methods": "Highlight PIX as the primary/preferred option with the 5% discount (use color #32BCAD for PIX). Secondary: Cartão de Crédito."
+    },
+    "trust_signals": {
+      "visuals": "Use Lucide icons for Security (ShieldCheck, Lock).",
+      "copy": "Use phrases like 'Compra 100% Segura', 'Dados Criptografados', 'Garantia de Qualidade'."
+    }
+  },
+  "testing_and_accessibility": {
+    "data_testid": "ALL interactive elements (buttons, inputs, links, cart triggers, checkout steps) MUST have a kebab-case data-testid attribute.",
+    "contrast": "Ensure text over images uses text-shadow or dark overlays. Follow APCA contrast guidelines."
+  }
+}
