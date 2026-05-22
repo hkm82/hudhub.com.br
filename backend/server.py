@@ -5,10 +5,12 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os
 import uuid
+import asyncio
 import logging
 import bcrypt
 import jwt
 import httpx
+import resend
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
@@ -114,6 +116,10 @@ class OrderCreateIn(BaseModel):
     payment_method: Literal["pix", "card"]
     shipping: ShippingIn
     card: Optional[CardIn] = None
+    coupon_code: Optional[str] = None
+
+class CouponValidateIn(BaseModel):
+    code: str
 
 # --- Auth dependency ---
 async def get_current_user(request: Request) -> dict:
@@ -362,8 +368,38 @@ async def lookup_cep(cep: str):
         "state": data.get("uf", ""),
     }
 
+# --- Coupons ---
+COUPONS = {
+    "BEMVINDO25": {"code": "BEMVINDO25", "amount_cents": 2500, "description": "R$ 25 de desconto de boas-vindas"},
+}
+
+async def _user_used_coupon(user_id: str, code: str) -> bool:
+    found = await db.orders.find_one({"user_id": user_id, "coupon_code": code})
+    return found is not None
+
+@api_router.post("/coupons/validate")
+async def validate_coupon(payload: CouponValidateIn, user: dict = Depends(get_current_user)):
+    code = payload.code.strip().upper()
+    coupon = COUPONS.get(code)
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Cupom inválido ou expirado")
+    if await _user_used_coupon(user["id"], code):
+        raise HTTPException(status_code=400, detail="Você já utilizou este cupom")
+    return coupon
+
 # --- Orders ---
-def _compute_total(items: List[CartItemIn], payment_method: str) -> dict:
+async def _resolve_coupon(user_id: Optional[str], code: Optional[str]) -> Optional[dict]:
+    if not code:
+        return None
+    code = code.strip().upper()
+    coupon = COUPONS.get(code)
+    if not coupon:
+        raise HTTPException(status_code=400, detail="Cupom inválido")
+    if user_id and await _user_used_coupon(user_id, code):
+        raise HTTPException(status_code=400, detail="Você já utilizou este cupom")
+    return coupon
+
+def _compute_total(items: List[CartItemIn], payment_method: str, coupon: Optional[dict] = None) -> dict:
     subtotal = 0
     detailed = []
     for it in items:
@@ -381,18 +417,115 @@ def _compute_total(items: List[CartItemIn], payment_method: str) -> dict:
             "line_total": line,
             "image": p["images"][0],
         })
-    discount = 0
+    coupon_discount = 0
+    if coupon:
+        coupon_discount = min(coupon["amount_cents"], subtotal)
+    after_coupon = subtotal - coupon_discount
+    pix_discount = 0
     if payment_method == "pix":
-        discount = round(subtotal * 0.05)
+        pix_discount = round(after_coupon * 0.05)
     shipping = 0  # free
+    discount = coupon_discount + pix_discount
     total = subtotal - discount + shipping
     return {
         "items": detailed,
         "subtotal": subtotal,
+        "coupon_discount": coupon_discount,
+        "pix_discount": pix_discount,
         "discount": discount,
         "shipping": shipping,
         "total": total,
     }
+
+# --- Email sending ---
+def _format_brl(cents: int) -> str:
+    return f"R$ {cents/100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def _build_order_email_html(order: dict) -> str:
+    items_rows = "".join(
+        f"""<tr>
+              <td style="padding:12px;border-bottom:1px solid #eee;">{it['quantity']}× {it['name']}</td>
+              <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;font-family:monospace;">{_format_brl(it['line_total'])}</td>
+            </tr>"""
+        for it in order["items"]
+    )
+    payment_label = "PIX" if order["payment_method"] == "pix" else f"Cartão final {order.get('card_last4','****')}"
+    coupon_row = ""
+    if order.get("coupon_code"):
+        coupon_row = f"""<tr><td style="padding:6px 12px;color:#32BCAD;">Cupom {order['coupon_code']}</td>
+            <td style="padding:6px 12px;text-align:right;font-family:monospace;color:#32BCAD;">-{_format_brl(order.get('coupon_discount',0))}</td></tr>"""
+    pix_row = ""
+    if order.get("pix_discount", 0) > 0:
+        pix_row = f"""<tr><td style="padding:6px 12px;color:#32BCAD;">Desconto PIX (-5%)</td>
+            <td style="padding:6px 12px;text-align:right;font-family:monospace;color:#32BCAD;">-{_format_brl(order['pix_discount'])}</td></tr>"""
+    s = order["shipping_data"]
+    return f"""<!doctype html>
+<html><body style="margin:0;padding:0;background:#f5f5f7;font-family:Arial,sans-serif;color:#1c1c1e;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f7;padding:24px 0;">
+<tr><td align="center">
+  <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e5e7;">
+    <tr><td style="background:#0F0F12;padding:24px;">
+      <span style="color:#FF9500;font-size:22px;font-weight:700;">AutoVisor.</span>
+    </td></tr>
+    <tr><td style="padding:32px 32px 8px;">
+      <h1 style="margin:0;font-size:24px;color:#1c1c1e;">Pedido confirmado!</h1>
+      <p style="color:#525252;margin:8px 0 0;">Olá {s['full_name']}, recebemos seu pedido <strong>{order['order_number']}</strong>.</p>
+    </td></tr>
+    <tr><td style="padding:24px 32px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e5e7;">
+        <tr><td style="background:#fafafa;padding:12px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#71717a;">Itens</td>
+            <td style="background:#fafafa;padding:12px;text-align:right;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#71717a;">Total</td></tr>
+        {items_rows}
+        <tr><td style="padding:6px 12px;color:#71717a;">Subtotal</td>
+            <td style="padding:6px 12px;text-align:right;font-family:monospace;">{_format_brl(order['subtotal'])}</td></tr>
+        {coupon_row}
+        {pix_row}
+        <tr><td style="padding:12px;border-top:2px solid #1c1c1e;font-weight:700;">Total</td>
+            <td style="padding:12px;border-top:2px solid #1c1c1e;text-align:right;font-family:monospace;font-weight:700;">{_format_brl(order['total'])}</td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="padding:0 32px 24px;">
+      <h3 style="font-size:14px;color:#71717a;text-transform:uppercase;letter-spacing:0.1em;">Entrega</h3>
+      <p style="margin:6px 0;color:#1c1c1e;line-height:1.5;">
+        {s['full_name']}<br/>
+        {s['street']}, {s['number']} {s.get('complement','')}<br/>
+        {s['neighborhood']} — {s['city']}/{s['state']}<br/>
+        CEP {s['cep']} · {s['phone']}
+      </p>
+      <h3 style="font-size:14px;color:#71717a;text-transform:uppercase;letter-spacing:0.1em;margin-top:24px;">Pagamento</h3>
+      <p style="margin:6px 0;color:#1c1c1e;">{payment_label}</p>
+      <p style="margin:6px 0;color:#71717a;font-size:13px;">Status: <strong>{order['status'].replace('_',' ')}</strong></p>
+    </td></tr>
+    <tr><td style="background:#0F0F12;padding:20px 32px;color:#a1a1aa;font-size:12px;">
+      AutoVisor Tecnologia LTDA · contato@autovisor.com.br · (11) 4002-8922<br/>
+      Você recebeu este e-mail porque fez uma compra na nossa loja.
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body></html>"""
+
+async def _send_order_email(order: dict) -> None:
+    """Send order confirmation email. Mocks (logs) if RESEND_API_KEY is missing."""
+    api_key = os.environ.get("RESEND_API_KEY", "").strip()
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    html = _build_order_email_html(order)
+    subject = f"AutoVisor — Pedido {order['order_number']} confirmado"
+    if not api_key:
+        logger.info("[EMAIL MOCK] to=%s subject=%s (no RESEND_API_KEY set)", order["user_email"], subject)
+        logger.info("[EMAIL MOCK] html_length=%d", len(html))
+        return
+    try:
+        resend.api_key = api_key
+        await asyncio.to_thread(resend.Emails.send, {
+            "from": sender,
+            "to": [order["user_email"]],
+            "subject": subject,
+            "html": html,
+        })
+        logger.info("[EMAIL SENT] to=%s order=%s", order["user_email"], order["order_number"])
+    except Exception as e:
+        logger.error("[EMAIL ERROR] %s", e)
 
 @api_router.post("/orders")
 async def create_order(payload: OrderCreateIn, user: dict = Depends(get_current_user)):
@@ -400,7 +533,8 @@ async def create_order(payload: OrderCreateIn, user: dict = Depends(get_current_
         raise HTTPException(status_code=400, detail="Carrinho vazio")
     if payload.payment_method == "card" and not payload.card:
         raise HTTPException(status_code=400, detail="Dados do cartão obrigatórios")
-    totals = _compute_total(payload.items, payload.payment_method)
+    coupon = await _resolve_coupon(user["id"], payload.coupon_code)
+    totals = _compute_total(payload.items, payload.payment_method, coupon)
     order_id = str(uuid.uuid4())
     order_number = f"AV-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{order_id[:6].upper()}"
     pix_code = None
@@ -418,6 +552,9 @@ async def create_order(payload: OrderCreateIn, user: dict = Depends(get_current_
         "user_email": user["email"],
         "items": totals["items"],
         "subtotal": totals["subtotal"],
+        "coupon_code": coupon["code"] if coupon else None,
+        "coupon_discount": totals["coupon_discount"],
+        "pix_discount": totals["pix_discount"],
         "discount": totals["discount"],
         "shipping": totals["shipping"],
         "total": totals["total"],
@@ -431,6 +568,8 @@ async def create_order(payload: OrderCreateIn, user: dict = Depends(get_current_
     }
     await db.orders.insert_one(doc)
     doc.pop("_id", None)
+    # Fire-and-forget email confirmation
+    asyncio.create_task(_send_order_email(doc))
     return doc
 
 @api_router.get("/orders")

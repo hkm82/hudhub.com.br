@@ -4,7 +4,7 @@ import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { api, formatApiError } from "../lib/api";
 import { maskCPF, maskCEP, maskPhone, maskCard, maskExpiry, validateCPF, onlyDigits, formatBRL } from "../lib/format";
-import { ShieldCheck, Lock, ArrowRight, ArrowLeft, CheckCircle2, CreditCard, QrCode } from "lucide-react";
+import { ShieldCheck, Lock, ArrowRight, ArrowLeft, CheckCircle2, CreditCard, QrCode, Tag, X } from "lucide-react";
 
 export default function Checkout() {
   const { items, subtotal, clear } = useCart();
@@ -28,6 +28,26 @@ export default function Checkout() {
   });
   const [payment, setPayment] = useState("pix");
   const [card, setCard] = useState({ holder_name: "", number: "", expiry: "", cvv: "", installments: 1 });
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState(null); // { code, amount_cents, description }
+  const [couponErr, setCouponErr] = useState("");
+
+  async function applyCoupon() {
+    setCouponErr("");
+    if (!couponInput.trim()) return;
+    try {
+      const { data } = await api.post("/coupons/validate", { code: couponInput.trim() });
+      setCoupon(data);
+      setCouponInput("");
+    } catch (e) {
+      setCouponErr(formatApiError(e));
+    }
+  }
+
+  function removeCoupon() {
+    setCoupon(null);
+    setCouponErr("");
+  }
 
   useEffect(() => {
     if (!user) nav("/login?next=/checkout");
@@ -88,6 +108,7 @@ export default function Checkout() {
         payment_method: payment,
         shipping,
         card: payment === "card" ? card : null,
+        coupon_code: coupon ? coupon.code : null,
       };
       const { data } = await api.post("/orders", payload);
       clear();
@@ -97,8 +118,11 @@ export default function Checkout() {
     } finally { setLoading(false); }
   }
 
-  const pixTotal = Math.round(subtotal * 0.95);
-  const total = payment === "pix" ? pixTotal : subtotal;
+  const couponDiscount = coupon ? Math.min(coupon.amount_cents, subtotal) : 0;
+  const afterCoupon = subtotal - couponDiscount;
+  const pixDiscount = payment === "pix" ? Math.round(afterCoupon * 0.05) : 0;
+  const total = subtotal - couponDiscount - pixDiscount;
+  const pixTotal = subtotal - couponDiscount - Math.round((subtotal - couponDiscount) * 0.05);
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
@@ -184,6 +208,41 @@ export default function Checkout() {
           {step === 2 && (
             <section className="space-y-6" data-testid="checkout-step-payment">
               <h2 className="heading text-2xl">Forma de pagamento</h2>
+
+              {/* Coupon */}
+              <div className="p-5 bg-[#16161A] border border-white/10">
+                <div className="flex items-center gap-2 small-caps text-[#FF9500]"><Tag className="w-3.5 h-3.5" /> Cupom de desconto</div>
+                {coupon ? (
+                  <div className="mt-3 flex items-center justify-between gap-3 p-3 bg-[#32D74B]/10 border border-[#32D74B]/40">
+                    <div className="text-sm">
+                      <span className="mono font-semibold text-[#32D74B]">{coupon.code}</span>
+                      <span className="text-zinc-300"> · {coupon.description}</span>
+                    </div>
+                    <button data-testid="remove-coupon" onClick={removeCoupon} className="text-zinc-400 hover:text-[#FF453A]">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        data-testid="coupon-input"
+                        type="text"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                        placeholder="Digite o código (ex: BEMVINDO25)"
+                        className="field flex-1"
+                      />
+                      <button data-testid="apply-coupon" type="button" onClick={applyCoupon} className="btn-outline px-4 py-2 rounded-sm text-sm whitespace-nowrap">
+                        Aplicar
+                      </button>
+                    </div>
+                    {couponErr && <div data-testid="coupon-error" className="mt-2 text-sm text-[#FF453A]">{couponErr}</div>}
+                    <p className="mt-2 text-xs text-zinc-500">Dica: use <span className="mono text-[#FF9500]">BEMVINDO25</span> para R$ 25 de desconto na sua 1ª compra.</p>
+                  </>
+                )}
+              </div>
+
               <div className="grid sm:grid-cols-2 gap-3">
                 <button data-testid="payment-pix" type="button" onClick={() => setPayment("pix")} className={`p-5 text-left border ${payment === "pix" ? "border-pix bg-pix/5" : "border-white/15 bg-[#16161A]"}`}>
                   <div className="flex items-center justify-between">
@@ -196,7 +255,7 @@ export default function Checkout() {
                 <button data-testid="payment-card" type="button" onClick={() => setPayment("card")} className={`p-5 text-left border ${payment === "card" ? "border-[#FF9500] bg-[#FF9500]/5" : "border-white/15 bg-[#16161A]"}`}>
                   <CreditCard className="w-6 h-6 text-[#FF9500]" />
                   <div className="font-semibold mt-3">Cartão de Crédito</div>
-                  <div className="text-xs text-zinc-400">Em até 12x · {formatBRL(subtotal)}</div>
+                  <div className="text-xs text-zinc-400">Em até 12x · {formatBRL(subtotal - couponDiscount)}</div>
                 </button>
               </div>
 
@@ -223,7 +282,7 @@ export default function Checkout() {
                       <label className="small-caps">Parcelas</label>
                       <select data-testid="card-installments" value={card.installments} onChange={(e) => setCard((p) => ({ ...p, installments: parseInt(e.target.value) }))} className="field">
                         {[1,2,3,4,5,6,7,8,9,10,11,12].map((n) => (
-                          <option key={n} value={n} className="bg-black">{n}x de {formatBRL(Math.round(subtotal / n))} sem juros</option>
+                          <option key={n} value={n} className="bg-black">{n}x de {formatBRL(Math.round((subtotal - couponDiscount) / n))} sem juros</option>
                         ))}
                       </select>
                     </div>
@@ -255,10 +314,11 @@ export default function Checkout() {
                 <h3 className="small-caps mb-3">Pagamento</h3>
                 <div className="text-sm text-zinc-300">
                   {payment === "pix" ? (
-                    <>PIX (-5%) · <span className="text-pix">{formatBRL(pixTotal)}</span></>
+                    <>PIX (-5%) · <span className="text-pix">{formatBRL(total)}</span></>
                   ) : (
-                    <>Cartão final {card.number.slice(-4)} · {card.installments}x · {formatBRL(subtotal)}</>
+                    <>Cartão final {card.number.slice(-4)} · {card.installments}x · {formatBRL(total)}</>
                   )}
+                  {coupon && <div className="mt-2 text-xs text-[#32D74B]">Cupom <span className="mono">{coupon.code}</span> aplicado: -{formatBRL(couponDiscount)}</div>}
                 </div>
               </div>
             </section>
@@ -299,8 +359,10 @@ export default function Checkout() {
           <div className="border-t border-white/10 mt-5 pt-4 space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-zinc-400">Subtotal</span><span className="mono">{formatBRL(subtotal)}</span></div>
             <div className="flex justify-between"><span className="text-zinc-400">Frete</span><span className="mono text-[#32D74B]">Grátis</span></div>
-            {payment === "pix" && <div className="flex justify-between"><span className="text-pix">Desconto PIX</span><span className="mono text-pix">-{formatBRL(subtotal - pixTotal)}</span></div>}
-            <div className="flex justify-between border-t border-white/10 pt-2 text-base"><span>Total</span><span className="mono font-semibold">{formatBRL(total)}</span></div>
+            {coupon && <div className="flex justify-between" data-testid="summary-coupon"><span className="text-[#32D74B]">Cupom {coupon.code}</span><span className="mono text-[#32D74B]">-{formatBRL(couponDiscount)}</span></div>}
+            {payment === "pix" && pixDiscount > 0 && <div className="flex justify-between"><span className="text-pix">Desconto PIX (-5%)</span><span className="mono text-pix">-{formatBRL(pixDiscount)}</span></div>}
+            <div className="flex justify-between border-t border-white/10 pt-2 text-base"><span>Total</span><span data-testid="summary-total" className="mono font-semibold">{formatBRL(total)}</span></div>
+            {payment === "card" && coupon && <div className="text-xs text-pix mono pt-1">ou {formatBRL(pixTotal)} no PIX</div>}
           </div>
           <div className="mt-5 flex items-center gap-2 text-xs text-zinc-400">
             <ShieldCheck className="w-4 h-4 text-[#32D74B]" /> Compra protegida

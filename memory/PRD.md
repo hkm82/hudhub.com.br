@@ -14,17 +14,23 @@ Customers must register (email, password, full name as on CPF, CPF, phone, CEP, 
 - Theme: "Dark Automotive Precision" (per design_guidelines.json).
 
 ## What's implemented (Feb 2026)
-- Auth: register, login, logout, /me, JWT cookies, admin seeding.
+- Auth: register, login, logout, /me, JWT cookies (secure=True, samesite=none), admin seeding.
 - ViaCEP proxy `/api/cep/{cep}` for address autocomplete.
-- 2 seeded products with full Portuguese descriptions/specs/images.
+- 2 seeded products at R$ 425,00 (compare R$ 599,00) with full PT-BR descriptions/specs/images/unique_features/compatibility.
+- Compatibility table covering 12 Brazilian car brands.
 - Shopping cart (localStorage) with add/update/remove.
 - Multi-step checkout (entrega → pagamento → revisão).
+- **Coupon system**: BEMVINDO25 (R$ 25 off), single-use per customer, cumulative with PIX-5%.
 - PIX (5% discount, fake PIX code) and Credit Card (mocked) payment.
 - Order creation + order confirmation page with PIX QR copy.
+- **Resend email integration**: sends HTML order-confirmation email; logs to stdout when RESEND_API_KEY is empty (MOCK MODE).
 - Customer account page with order history.
 - Admin panel `/admin` with stats and full order details.
 - CPF validation, masks for CPF/CEP/phone/card.
 - Trust signals throughout (SSL, lock, secure badges).
+
+## Pendências para o usuário
+- Adicionar RESEND_API_KEY no /app/backend/.env (criar conta grátis em resend.com) para começar a enviar e-mails de verdade. Sem a key, o sistema apenas loga o conteúdo do e-mail.
 
 ## Core requirements (static)
 - All copy in PT-BR.

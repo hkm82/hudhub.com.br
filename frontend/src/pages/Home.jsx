@@ -50,6 +50,15 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Coupon promo strip */}
+      <div className="border-y border-[#FF9500]/30 bg-[#FF9500]/5">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-3 text-sm flex items-center justify-center gap-3 flex-wrap text-zinc-200">
+          <span className="inline-flex items-center gap-2"><span className="w-2 h-2 bg-[#FF9500] rounded-full animate-pulse" /> Cupom de boas-vindas:</span>
+          <span className="mono font-bold text-[#FF9500] px-2 py-0.5 border border-[#FF9500]/40">BEMVINDO25</span>
+          <span className="text-zinc-300">— R$ 25 OFF na sua primeira compra · cumula com PIX (-5%)</span>
+        </div>
+      </div>
+
       {/* Products */}
       <section className="max-w-7xl mx-auto px-6 lg:px-10 py-24">
         <div className="flex items-end justify-between mb-12 gap-6 flex-wrap">

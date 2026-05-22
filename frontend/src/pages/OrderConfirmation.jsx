@@ -21,8 +21,13 @@ export default function OrderConfirmation() {
       <div className="text-center">
         <CheckCircle2 className="w-14 h-14 text-[#32D74B] mx-auto" />
         <h1 className="heading text-4xl mt-4">Pedido confirmado!</h1>
-        <p className="text-zinc-400 mt-2">Obrigado pela sua compra. Você receberá atualizações no e-mail <span className="text-white">{order.user_email}</span>.</p>
+        <p className="text-zinc-400 mt-2">Obrigado pela sua compra. Enviamos a confirmação para <span className="text-white">{order.user_email}</span>.</p>
         <div className="inline-block mono text-sm mt-4 px-3 py-1 border border-white/15">Pedido <span className="text-[#FF9500]">{order.order_number}</span></div>
+        {order.coupon_code && (
+          <div data-testid="coupon-applied-banner" className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-[#32D74B]/10 border border-[#32D74B]/30 text-[#32D74B] text-sm">
+            Cupom <span className="mono">{order.coupon_code}</span> aplicado · economia de R$ {(order.coupon_discount/100).toFixed(2).replace(".",",")}
+          </div>
+        )}
       </div>
 
       {order.payment_method === "pix" && order.pix_code && (
@@ -53,7 +58,8 @@ export default function OrderConfirmation() {
         </div>
         <div className="border-t border-white/10 mt-5 pt-4 text-sm space-y-1">
           <div className="flex justify-between"><span className="text-zinc-400">Subtotal</span><span className="mono">{formatBRL(order.subtotal)}</span></div>
-          {order.discount > 0 && <div className="flex justify-between"><span className="text-pix">Desconto PIX</span><span className="mono text-pix">-{formatBRL(order.discount)}</span></div>}
+          {order.coupon_discount > 0 && <div className="flex justify-between"><span className="text-[#32D74B]">Cupom {order.coupon_code}</span><span className="mono text-[#32D74B]">-{formatBRL(order.coupon_discount)}</span></div>}
+          {order.pix_discount > 0 && <div className="flex justify-between"><span className="text-pix">Desconto PIX (-5%)</span><span className="mono text-pix">-{formatBRL(order.pix_discount)}</span></div>}
           <div className="flex justify-between text-base font-semibold pt-2 border-t border-white/10"><span>Total</span><span className="mono">{formatBRL(order.total)}</span></div>
         </div>
       </div>
