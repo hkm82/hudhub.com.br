@@ -66,9 +66,9 @@ export default function Home() {
               key={p.id}
               to={`/produto/${p.id}`}
               data-testid={`product-card-${p.id}`}
-              className="group relative bg-[#0A0A0A] border border-white/10 hover:border-[#FF9500]/40 transition-colors overflow-hidden"
+              className="group relative bg-[#16161A] border border-white/10 hover:border-[#FF9500]/40 transition-colors overflow-hidden"
             >
-              <div className="aspect-[4/3] bg-[#121214] relative overflow-hidden">
+              <div className="aspect-[4/3] bg-[#1C1C20] relative overflow-hidden">
                 <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                 <div className="absolute top-4 left-4">
                   <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs small-caps ${p.edition === "navigation" ? "bg-[#0A84FF]/15 text-[#0A84FF] border border-[#0A84FF]/30" : "bg-[#FF453A]/15 text-[#FF453A] border border-[#FF453A]/30"}`}>
@@ -80,6 +80,18 @@ export default function Home() {
               <div className="p-6 lg:p-8">
                 <h3 className="heading text-2xl font-medium">{p.name}</h3>
                 <p className="text-sm text-zinc-400 mt-2 leading-relaxed">{p.tagline}</p>
+
+                {p.unique_features && (
+                  <ul className="mt-4 space-y-1.5">
+                    {p.unique_features.slice(0, 3).map((uf, k) => (
+                      <li key={k} className="flex items-start gap-2 text-sm">
+                        <span className={`mt-1 w-1.5 h-1.5 flex-shrink-0 ${p.edition === "navigation" ? "bg-[#0A84FF]" : "bg-[#FF453A]"}`} />
+                        <span className="text-zinc-300"><span className="text-white font-medium">{uf.title}</span> — {uf.desc.slice(0, 60)}...</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
                 <div className="flex items-center gap-1 mt-4 text-sm text-zinc-300">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star key={i} className={`w-4 h-4 ${i < Math.round(p.rating) ? "text-[#FFD60A] fill-[#FFD60A]" : "text-zinc-700"}`} />
@@ -112,7 +124,7 @@ export default function Home() {
             { icon: Gauge, title: "Dados em tempo real", body: "Velocidade, RPM, temperatura, voltagem, distância e tempo a 0,2s de latência." },
             { icon: Zap, title: "Compatibilidade total", body: "Funciona em 99% dos veículos fabricados após 2008 com porta OBD-II padrão." },
           ].map((f, i) => (
-            <div key={i} className="bg-[#0A0A0A] border border-white/10 p-8">
+            <div key={i} className="bg-[#16161A] border border-white/10 p-8">
               <f.icon className="w-6 h-6 text-[#FF9500] mb-4" />
               <h3 className="heading text-xl mb-2">{f.title}</h3>
               <p className="text-sm text-zinc-400 leading-relaxed">{f.body}</p>
@@ -122,7 +134,7 @@ export default function Home() {
       </section>
 
       {/* Trust band */}
-      <section className="border-y border-white/10 bg-[#0A0A0A]">
+      <section className="border-y border-white/10 bg-[#16161A]">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
             { icon: ShieldCheck, t: "Compra segura", s: "SSL 256-bit" },

@@ -17,7 +17,7 @@ import Admin from "@/pages/Admin";
 
 function App() {
   return (
-    <div className="App grain bg-[#050505] min-h-screen text-white">
+    <div className="App grain bg-[#0F0F12] min-h-screen text-white">
       <BrowserRouter>
         <AuthProvider>
           <CartProvider>

@@ -25,7 +25,7 @@ export default function Account() {
       <section className="mt-10">
         <h2 className="heading text-2xl mb-6">Meus pedidos</h2>
         {orders.length === 0 ? (
-          <div className="border border-white/10 p-10 text-center text-zinc-400 bg-[#0A0A0A]">
+          <div className="border border-white/10 p-10 text-center text-zinc-400 bg-[#16161A]">
             <Package className="w-10 h-10 mx-auto opacity-50" />
             <p className="mt-4">Você ainda não fez pedidos.</p>
             <Link to="/" className="text-[#FF9500] mt-3 inline-block">Conhecer produtos</Link>
@@ -33,7 +33,7 @@ export default function Account() {
         ) : (
           <div className="space-y-3">
             {orders.map((o) => (
-              <Link to={`/pedido-confirmado/${o.id}`} key={o.id} data-testid={`order-${o.id}`} className="block bg-[#0A0A0A] border border-white/10 hover:border-[#FF9500]/40 p-5 transition-colors">
+              <Link to={`/pedido-confirmado/${o.id}`} key={o.id} data-testid={`order-${o.id}`} className="block bg-[#16161A] border border-white/10 hover:border-[#FF9500]/40 p-5 transition-colors">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
                     <div className="text-xs small-caps text-zinc-400">{new Date(o.created_at).toLocaleString("pt-BR")}</div>
@@ -52,7 +52,7 @@ export default function Account() {
 
       <section className="mt-12">
         <h2 className="heading text-2xl mb-6">Meus dados</h2>
-        <div className="grid sm:grid-cols-2 gap-3 text-sm bg-[#0A0A0A] border border-white/10 p-6">
+        <div className="grid sm:grid-cols-2 gap-3 text-sm bg-[#16161A] border border-white/10 p-6">
           <div><span className="small-caps text-zinc-400">E-mail</span><div>{user.email}</div></div>
           <div><span className="small-caps text-zinc-400">CPF</span><div className="mono">{user.cpf}</div></div>
           <div><span className="small-caps text-zinc-400">Celular</span><div className="mono">{user.phone}</div></div>

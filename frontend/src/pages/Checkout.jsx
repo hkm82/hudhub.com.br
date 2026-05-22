@@ -185,7 +185,7 @@ export default function Checkout() {
             <section className="space-y-6" data-testid="checkout-step-payment">
               <h2 className="heading text-2xl">Forma de pagamento</h2>
               <div className="grid sm:grid-cols-2 gap-3">
-                <button data-testid="payment-pix" type="button" onClick={() => setPayment("pix")} className={`p-5 text-left border ${payment === "pix" ? "border-pix bg-pix/5" : "border-white/15 bg-[#0A0A0A]"}`}>
+                <button data-testid="payment-pix" type="button" onClick={() => setPayment("pix")} className={`p-5 text-left border ${payment === "pix" ? "border-pix bg-pix/5" : "border-white/15 bg-[#16161A]"}`}>
                   <div className="flex items-center justify-between">
                     <QrCode className="w-6 h-6 text-pix" />
                     <span className="small-caps text-pix">-5%</span>
@@ -193,7 +193,7 @@ export default function Checkout() {
                   <div className="font-semibold mt-3">PIX</div>
                   <div className="text-xs text-zinc-400">Aprovação imediata · {formatBRL(pixTotal)}</div>
                 </button>
-                <button data-testid="payment-card" type="button" onClick={() => setPayment("card")} className={`p-5 text-left border ${payment === "card" ? "border-[#FF9500] bg-[#FF9500]/5" : "border-white/15 bg-[#0A0A0A]"}`}>
+                <button data-testid="payment-card" type="button" onClick={() => setPayment("card")} className={`p-5 text-left border ${payment === "card" ? "border-[#FF9500] bg-[#FF9500]/5" : "border-white/15 bg-[#16161A]"}`}>
                   <CreditCard className="w-6 h-6 text-[#FF9500]" />
                   <div className="font-semibold mt-3">Cartão de Crédito</div>
                   <div className="text-xs text-zinc-400">Em até 12x · {formatBRL(subtotal)}</div>
@@ -242,7 +242,7 @@ export default function Checkout() {
           {step === 3 && (
             <section className="space-y-6" data-testid="checkout-step-review">
               <h2 className="heading text-2xl">Revise seu pedido</h2>
-              <div className="border border-white/10 p-5 bg-[#0A0A0A]">
+              <div className="border border-white/10 p-5 bg-[#16161A]">
                 <h3 className="small-caps mb-3">Entrega</h3>
                 <div className="text-sm text-zinc-300 leading-relaxed">
                   {shipping.full_name}<br/>
@@ -251,7 +251,7 @@ export default function Checkout() {
                   CEP {shipping.cep} · {shipping.phone}
                 </div>
               </div>
-              <div className="border border-white/10 p-5 bg-[#0A0A0A]">
+              <div className="border border-white/10 p-5 bg-[#16161A]">
                 <h3 className="small-caps mb-3">Pagamento</h3>
                 <div className="text-sm text-zinc-300">
                   {payment === "pix" ? (
@@ -282,7 +282,7 @@ export default function Checkout() {
           {err && <div data-testid="checkout-error" className="text-sm text-[#FF453A] border border-[#FF453A]/30 bg-[#FF453A]/10 px-3 py-2 mt-4">{err}</div>}
         </div>
 
-        <aside className="bg-[#0A0A0A] border border-white/10 p-6 h-fit lg:sticky lg:top-24">
+        <aside className="bg-[#16161A] border border-white/10 p-6 h-fit lg:sticky lg:top-24">
           <h2 className="heading text-lg mb-4">Resumo</h2>
           <div className="space-y-3 max-h-64 overflow-auto pr-1 no-scrollbar">
             {items.map((it) => (

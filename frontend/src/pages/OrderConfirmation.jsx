@@ -37,12 +37,12 @@ export default function OrderConfirmation() {
         </div>
       )}
 
-      <div className="mt-10 border border-white/10 bg-[#0A0A0A] p-6">
+      <div className="mt-10 border border-white/10 bg-[#16161A] p-6">
         <h2 className="heading text-xl mb-4">Itens do pedido</h2>
         <div className="space-y-3">
           {order.items.map((it) => (
             <div key={it.product_id} className="flex items-center gap-4">
-              <img src={it.image} alt="" className="w-14 h-14 object-cover bg-[#121214]" />
+              <img src={it.image} alt="" className="w-14 h-14 object-cover bg-[#1C1C20]" />
               <div className="flex-1">
                 <div className="text-sm">{it.name}</div>
                 <div className="text-xs text-zinc-500 mono">{it.quantity} × {formatBRL(it.unit_price)}</div>
@@ -59,7 +59,7 @@ export default function OrderConfirmation() {
       </div>
 
       <div className="mt-8 grid sm:grid-cols-2 gap-3">
-        <div className="border border-white/10 p-5 bg-[#0A0A0A]">
+        <div className="border border-white/10 p-5 bg-[#16161A]">
           <h3 className="small-caps mb-2 flex items-center gap-2"><Truck className="w-4 h-4 text-[#FF9500]" /> Entrega</h3>
           <p className="text-sm text-zinc-300 leading-relaxed">
             {order.shipping_data.full_name}<br/>
@@ -67,7 +67,7 @@ export default function OrderConfirmation() {
             {order.shipping_data.city} / {order.shipping_data.state}
           </p>
         </div>
-        <div className="border border-white/10 p-5 bg-[#0A0A0A]">
+        <div className="border border-white/10 p-5 bg-[#16161A]">
           <h3 className="small-caps mb-2">Status</h3>
           <p className="text-sm text-zinc-300">{order.status === "pago" ? "Pago — preparando envio" : "Aguardando pagamento PIX"}</p>
         </div>

@@ -48,7 +48,7 @@ export default function Product() {
       <div className="grid lg:grid-cols-2 gap-10">
         {/* Gallery */}
         <div>
-          <div className="bg-[#0A0A0A] border border-white/10 aspect-square overflow-hidden">
+          <div className="bg-[#16161A] border border-white/10 aspect-square overflow-hidden">
             <img
               src={product.images[activeImg]}
               alt={product.name}
@@ -56,6 +56,13 @@ export default function Product() {
               className="w-full h-full object-cover"
             />
           </div>
+          {product.image_captions && product.image_captions[activeImg] && (
+            <div className="mt-3 px-4 py-3 bg-[#1A1A1E] border border-white/10 text-sm text-zinc-300 leading-relaxed">
+              <span className="small-caps text-[#FF9500] block mb-1">Sobre esta imagem</span>
+              {product.image_captions[activeImg]}
+              <span className="block mt-1 text-xs text-zinc-500">Obs.: textos em inglês na foto são do fabricante. Tradução acima.</span>
+            </div>
+          )}
           <div className="grid grid-cols-4 gap-3 mt-3">
             {product.images.map((img, i) => (
               <button
@@ -85,7 +92,7 @@ export default function Product() {
             <span className="ml-2 mono text-xs text-zinc-400">{product.rating} · {product.reviews} avaliações verificadas</span>
           </div>
 
-          <div className="mt-8 p-6 bg-[#0A0A0A] border border-white/10">
+          <div className="mt-8 p-6 bg-[#16161A] border border-white/10">
             <span className="text-xs text-zinc-500 line-through mono">De {formatBRL(product.compare_price)}</span>
             <div className="flex items-baseline gap-3 mt-1">
               <span className="heading text-4xl font-medium">{formatBRL(product.price)}</span>
@@ -119,13 +126,43 @@ export default function Product() {
         </div>
       </div>
 
+      {/* Unique Features (firmware-specific differentiators) */}
+      {product.unique_features && (
+        <section className="mt-20">
+          <div className={`inline-flex items-center gap-2 px-3 py-1 text-xs small-caps ${product.edition === "navigation" ? "bg-[#0A84FF]/15 text-[#0A84FF] border border-[#0A84FF]/30" : "bg-[#FF453A]/15 text-[#FF453A] border border-[#FF453A]/30"}`}>
+            ★ Exclusivo desta edição
+          </div>
+          <h2 className="heading text-3xl sm:text-4xl mt-4">
+            {product.edition === "navigation" ? "O que torna a Edição Navegação única." : "O que torna a Edição Multi-Alarmes única."}
+          </h2>
+          <p className="text-zinc-400 mt-3 max-w-2xl">
+            Mesmo hardware da outra edição, mas com firmware especializado. Veja abaixo as funções que <strong className="text-white">só esta versão</strong> oferece:
+          </p>
+          <div className="grid md:grid-cols-3 gap-4 mt-8">
+            {product.unique_features.map((f, i) => (
+              <div
+                key={i}
+                data-testid={`unique-feature-${i}`}
+                className={`relative p-6 bg-[#1C1C20] border-2 ${product.edition === "navigation" ? "border-[#0A84FF]/40" : "border-[#FF453A]/40"}`}
+              >
+                <div className={`absolute -top-3 left-4 px-2 py-0.5 text-xs mono ${product.edition === "navigation" ? "bg-[#0A84FF] text-white" : "bg-[#FF453A] text-white"}`}>
+                  #{(i + 1).toString().padStart(2, "0")}
+                </div>
+                <h3 className="heading text-lg font-medium mt-2">{f.title}</h3>
+                <p className="text-sm text-zinc-300 leading-relaxed mt-3">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Highlights */}
       <section className="mt-20">
         <span className="small-caps text-[#FF9500]">Destaques</span>
         <h2 className="heading text-3xl sm:text-4xl mt-3">Tecnologia que protege.</h2>
         <ul className="mt-8 grid md:grid-cols-2 gap-3">
           {product.highlights.map((h, i) => (
-            <li key={i} className="flex items-start gap-3 p-4 bg-[#0A0A0A] border border-white/10">
+            <li key={i} className="flex items-start gap-3 p-4 bg-[#16161A] border border-white/10">
               <Check className="w-5 h-5 text-[#32D74B] flex-shrink-0 mt-0.5" />
               <span className="text-zinc-200">{h}</span>
             </li>
@@ -133,13 +170,56 @@ export default function Product() {
         </ul>
       </section>
 
+      {/* Compatibility */}
+      {product.compatibility && (
+        <section className="mt-20" data-testid="compatibility-section">
+          <span className="small-caps text-[#FF9500]">Compatibilidade</span>
+          <h2 className="heading text-3xl sm:text-4xl mt-3">Funciona no seu carro?</h2>
+          <p className="text-zinc-300 mt-3 max-w-3xl leading-relaxed">{product.compatibility.summary}</p>
+
+          <div className="mt-8 border border-white/10 overflow-hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-3 px-6 py-3 bg-[#1A1A1E] border-b border-white/10 text-xs small-caps text-zinc-400">
+              <span>Marca</span>
+              <span className="sm:col-span-2">Modelos compatíveis</span>
+            </div>
+            {product.compatibility.brands.map((b, i) => (
+              <div key={b.name} className={`grid grid-cols-1 sm:grid-cols-3 gap-2 px-6 py-4 ${i % 2 === 0 ? "bg-[#16161A]" : "bg-[#1A1A1E]"}`}>
+                <span className="font-semibold text-white">{b.name}</span>
+                <span className="sm:col-span-2 text-zinc-300 text-sm">{b.models}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 grid sm:grid-cols-2 gap-3">
+            <div className="p-4 bg-[#16161A] border border-[#32D74B]/30">
+              <div className="flex items-center gap-2 small-caps text-[#32D74B]"><Check className="w-4 h-4" /> Compatível</div>
+              <p className="text-sm text-zinc-300 mt-2 leading-relaxed">
+                Todos os carros com porta OBD-II, fabricados a partir de 2008 — gasolina, flex, diesel, híbridos e elétricos.
+              </p>
+            </div>
+            <div className="p-4 bg-[#16161A] border border-[#FF453A]/30">
+              <div className="flex items-center gap-2 small-caps text-[#FF453A]">✗ Não compatível</div>
+              <ul className="text-sm text-zinc-300 mt-2 space-y-1">
+                {product.compatibility.not_compatible.map((n, i) => (
+                  <li key={i}>• {n}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <p className="text-xs text-zinc-500 mt-4">
+            Em dúvida sobre seu modelo? Procure por <span className="mono text-zinc-300">"OBD-II"</span> no manual do seu carro ou abaixo do volante. Se houver o conector trapezoidal de 16 pinos, é compatível.
+          </p>
+        </section>
+      )}
+
       {/* Specs */}
       <section className="mt-20">
         <span className="small-caps text-[#FF9500]">Especificações</span>
         <h2 className="heading text-3xl sm:text-4xl mt-3">Ficha técnica completa.</h2>
         <div className="mt-8 border border-white/10">
           {Object.entries(product.specs).map(([k, v], i) => (
-            <div key={k} className={`grid grid-cols-1 sm:grid-cols-3 gap-2 px-6 py-4 ${i % 2 === 0 ? "bg-[#0A0A0A]" : "bg-[#0F0F11]"}`}>
+            <div key={k} className={`grid grid-cols-1 sm:grid-cols-3 gap-2 px-6 py-4 ${i % 2 === 0 ? "bg-[#16161A]" : "bg-[#1A1A1E]"}`}>
               <span className="small-caps text-zinc-400">{k}</span>
               <span className="sm:col-span-2 text-zinc-200">{v}</span>
             </div>

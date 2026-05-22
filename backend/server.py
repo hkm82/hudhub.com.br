@@ -41,7 +41,7 @@ def create_access_token(user_id: str, email: str, role: str) -> str:
 def set_auth_cookie(response: Response, token: str):
     response.set_cookie(
         key="access_token", value=token, httponly=True,
-        secure=False, samesite="lax", max_age=604800, path="/"
+        secure=True, samesite="none", max_age=604800, path="/"
     )
 
 # --- App / router ---
@@ -186,7 +186,7 @@ async def login(payload: LoginIn, response: Response):
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("access_token", path="/", samesite="none", secure=True)
     return {"ok": True}
 
 @api_router.get("/auth/me", response_model=UserOut)
@@ -201,8 +201,8 @@ PRODUCTS = [
         "name": "HUD C3 — Edição Navegação",
         "tagline": "GPS + OBD com navegação inteligente e alerta de velocidade por IA",
         "edition": "navigation",
-        "price": 29700,  # cents
-        "compare_price": 49700,
+        "price": 42500,  # cents
+        "compare_price": 59900,
         "stock": 25,
         "rating": 4.8,
         "reviews": 1247,
@@ -217,6 +217,17 @@ PRODUCTS = [
             "Alerta inteligente de excesso de velocidade (IA)",
             "Tela colorida HD anti-reflexo",
             "Compatível com 99% dos veículos pós-2008",
+        ],
+        "unique_features": [
+            {"title": "Navegação no para-brisa", "desc": "Sincroniza com o Google Maps do seu celular e projeta setas, distância e nome da rua direto no seu campo de visão."},
+            {"title": "Alerta de velocidade por IA", "desc": "Compara sua velocidade com o limite da via em tempo real e dispara alerta visual quando você ultrapassa."},
+            {"title": "Sistema duplo OBD + GPS", "desc": "Combina dados do computador do carro com dados via satélite para máxima precisão."},
+        ],
+        "image_captions": [
+            "Tela principal — navegação com setas e limite de velocidade projetados.",
+            "Tecnologia anti-fantasma — projeção nítida sem reflexos duplicados no para-brisa.",
+            "Design compacto que se acomoda no painel sem atrapalhar a visão.",
+            "Várias telas disponíveis — escolha as informações que mais importam para você.",
         ],
         "specs": {
             "Modelo": "C3 Navigation Edition",
@@ -243,8 +254,8 @@ PRODUCTS = [
         "name": "HUD C3 — Edição Multi-Alarmes",
         "tagline": "Monitoramento completo do veículo com 6 alarmes inteligentes",
         "edition": "alarms",
-        "price": 29700,
-        "compare_price": 49700,
+        "price": 42500,
+        "compare_price": 59900,
         "stock": 30,
         "rating": 4.9,
         "reviews": 982,
@@ -259,6 +270,17 @@ PRODUCTS = [
             "Detecção de códigos de erro (DTC) do motor",
             "Alerta de fadiga após 2h de direção",
             "Tela colorida HD com gráficos de barras",
+        ],
+        "unique_features": [
+            {"title": "6 alarmes inteligentes", "desc": "Avisa quando há excesso de velocidade, RPM alto, voltagem baixa, motor superaquecido, fadiga do motorista e códigos de erro."},
+            {"title": "Diagnóstico DTC do motor", "desc": "Lê os códigos de falha (Diagnostic Trouble Codes) e mostra exatamente o que o motor está sinalizando — sem precisar ir ao mecânico só para descobrir o que é a 'luz de injeção'."},
+            {"title": "Detector de fadiga", "desc": "Após 2 horas contínuas de direção, dispara alerta para você fazer uma pausa — reduzindo risco de acidentes por sonolência."},
+        ],
+        "image_captions": [
+            "Tela com múltiplos alarmes — velocidade, RPM, temperatura e voltagem em tempo real.",
+            "Visualização dos dados do carro com barras coloridas e alertas instantâneos.",
+            "Design compacto que se acomoda no painel sem atrapalhar a visão.",
+            "Várias telas disponíveis — alterne entre visões resumidas e detalhadas.",
         ],
         "specs": {
             "Modelo": "C3 Multi-Alarms Edition",
@@ -280,6 +302,33 @@ PRODUCTS = [
         ],
     },
 ]
+
+# Universal compatibility for both editions (OBD-II 12V vehicles, 2008+)
+COMPATIBILITY = {
+    "summary": "Funciona em 99% dos veículos com porta OBD-II padrão (2008 em diante). Instalação plug and play em menos de 30 segundos.",
+    "brands": [
+        {"name": "Volkswagen", "models": "Gol, Polo, Voyage, Virtus, T-Cross, Nivus, Jetta, Saveiro, Amarok"},
+        {"name": "Chevrolet", "models": "Onix, Prisma, Tracker, S10, Cruze, Spin, Cobalt, Montana"},
+        {"name": "Fiat", "models": "Argo, Cronos, Mobi, Strada, Toro, Pulse, Fastback, Uno"},
+        {"name": "Hyundai", "models": "HB20, Creta, Tucson, i30, Santa Fe"},
+        {"name": "Toyota", "models": "Corolla, Yaris, Hilux, SW4, RAV4, Etios"},
+        {"name": "Honda", "models": "Civic, City, Fit, HR-V, WR-V, CR-V"},
+        {"name": "Ford", "models": "Ka, EcoSport, Ranger, Territory, Bronco"},
+        {"name": "Renault", "models": "Kwid, Sandero, Logan, Duster, Captur, Oroch"},
+        {"name": "Jeep", "models": "Renegade, Compass, Commander, Wrangler"},
+        {"name": "Nissan", "models": "Versa, Kicks, Frontier, March, Sentra"},
+        {"name": "Peugeot", "models": "208, 2008, 3008, Partner"},
+        {"name": "Citroën", "models": "C3, C4 Cactus, Aircross, Berlingo"},
+    ],
+    "not_compatible": [
+        "Veículos anteriores a 2008 sem porta OBD-II",
+        "Caminhões/ônibus que utilizam padrão J1939 em vez de OBD-II",
+        "Motos (utilizam conector próprio)",
+    ],
+}
+
+for _p in PRODUCTS:
+    _p["compatibility"] = COMPATIBILITY
 
 PRODUCTS_BY_ID = {p["id"]: p for p in PRODUCTS}
 

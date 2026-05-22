@@ -38,8 +38,8 @@ export default function Cart() {
       <div className="grid lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-3">
           {items.map((it) => (
-            <div key={it.product_id} data-testid={`cart-item-${it.product_id}`} className="flex items-center gap-4 p-4 bg-[#0A0A0A] border border-white/10">
-              <img src={it.image} alt={it.name} className="w-20 h-20 object-cover bg-[#121214]" />
+            <div key={it.product_id} data-testid={`cart-item-${it.product_id}`} className="flex items-center gap-4 p-4 bg-[#16161A] border border-white/10">
+              <img src={it.image} alt={it.name} className="w-20 h-20 object-cover bg-[#1C1C20]" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm small-caps text-zinc-400">{it.edition === "navigation" ? "Edição Navegação" : "Edição Multi-Alarmes"}</div>
                 <div className="font-medium truncate">{it.name}</div>
@@ -56,7 +56,7 @@ export default function Cart() {
           ))}
         </div>
 
-        <aside className="bg-[#0A0A0A] border border-white/10 p-6 h-fit sticky top-24">
+        <aside className="bg-[#16161A] border border-white/10 p-6 h-fit sticky top-24">
           <h2 className="heading text-xl mb-6">Resumo</h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between"><span className="text-zinc-400">Subtotal</span><span className="mono">{formatBRL(subtotal)}</span></div>

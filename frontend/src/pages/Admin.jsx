@@ -30,17 +30,17 @@ export default function Admin() {
 
       {stats && (
         <div className="grid sm:grid-cols-3 gap-3 mt-8">
-          <div className="bg-[#0A0A0A] border border-white/10 p-5">
+          <div className="bg-[#16161A] border border-white/10 p-5">
             <ShoppingBag className="w-5 h-5 text-[#FF9500]" />
             <div className="text-xs small-caps text-zinc-400 mt-3">Pedidos</div>
             <div className="heading text-3xl mt-1">{stats.orders_count}</div>
           </div>
-          <div className="bg-[#0A0A0A] border border-white/10 p-5">
+          <div className="bg-[#16161A] border border-white/10 p-5">
             <DollarSign className="w-5 h-5 text-[#32D74B]" />
             <div className="text-xs small-caps text-zinc-400 mt-3">Faturamento</div>
             <div className="heading text-3xl mt-1">{formatBRL(stats.revenue_cents)}</div>
           </div>
-          <div className="bg-[#0A0A0A] border border-white/10 p-5">
+          <div className="bg-[#16161A] border border-white/10 p-5">
             <Users className="w-5 h-5 text-[#0A84FF]" />
             <div className="text-xs small-caps text-zinc-400 mt-3">Clientes</div>
             <div className="heading text-3xl mt-1">{stats.users_count}</div>
@@ -50,7 +50,7 @@ export default function Admin() {
 
       <div className="mt-10 border border-white/10 overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-[#0F0F11] text-zinc-400 text-xs small-caps">
+          <thead className="bg-[#1A1A1E] text-zinc-400 text-xs small-caps">
             <tr>
               <th className="text-left p-4">Pedido</th>
               <th className="text-left p-4">Data</th>
@@ -72,7 +72,7 @@ export default function Admin() {
                   <td className="p-4 text-right mono">{formatBRL(o.total)}</td>
                 </tr>
                 {expanded === o.id && (
-                  <tr className="bg-[#070707]">
+                  <tr className="bg-[#121215]">
                     <td colSpan={6} className="p-6">
                       <div className="grid md:grid-cols-2 gap-6 text-sm">
                         <div>

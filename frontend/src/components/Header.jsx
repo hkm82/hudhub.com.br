@@ -52,7 +52,7 @@ export default function Header() {
             <ShoppingCart className="w-4 h-4" />
             <span className="text-sm">Carrinho</span>
             {count > 0 && (
-              <span data-testid="cart-count" className="absolute -top-2 -right-2 bg-black text-[#FF9500] border border-[#FF9500] text-xs px-1.5 py-0.5 rounded-full mono">
+              <span data-testid="cart-count" className="absolute -top-2 -right-2 bg-[#0F0F12] text-[#FF9500] border border-[#FF9500] text-xs px-1.5 py-0.5 rounded-full mono">
                 {count}
               </span>
             )}
@@ -64,7 +64,7 @@ export default function Header() {
         </div>
       </div>
       {open && (
-        <div className="md:hidden border-t border-white/10 px-6 py-4 flex flex-col gap-3 bg-black">
+        <div className="md:hidden border-t border-white/10 px-6 py-4 flex flex-col gap-3 bg-[#0F0F12]">
           <NavLink to="/" end onClick={() => setOpen(false)} className="text-zinc-300">Início</NavLink>
           <NavLink to="/produto/hud-c3-navigation" onClick={() => setOpen(false)} className="text-zinc-300">HUD Navegação</NavLink>
           <NavLink to="/produto/hud-c3-alarms" onClick={() => setOpen(false)} className="text-zinc-300">HUD Multi-Alarmes</NavLink>
