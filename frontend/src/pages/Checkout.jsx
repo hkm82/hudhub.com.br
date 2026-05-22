@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { api, formatApiError } from "../lib/api";
 import { maskCPF, maskCEP, maskPhone, maskCard, maskExpiry, validateCPF, onlyDigits, formatBRL } from "../lib/format";
 import { ShieldCheck, Lock, ArrowRight, ArrowLeft, CheckCircle2, CreditCard, QrCode, Tag, X } from "lucide-react";
+import { trackEvent } from "../lib/analytics";
 
 export default function Checkout() {
   const { items, subtotal, clear } = useCart();
@@ -52,6 +53,7 @@ export default function Checkout() {
   useEffect(() => {
     if (!user) nav("/login?next=/checkout");
     else if (items.length === 0) nav("/carrinho");
+    else trackEvent("begin_checkout");
   }, [user, items, nav]);
 
   const set = (k) => (e) => setShipping((p) => ({ ...p, [k]: e.target.value }));
