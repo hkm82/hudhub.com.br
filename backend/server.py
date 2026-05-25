@@ -428,9 +428,9 @@ class CouponCreateIn(BaseModel):
     amount_cents: int = 0
     amount_percent: int = 0
     description: str = ""
-    max_uses: int = 0  # 0 = unlimited
+    max_uses: int = 0
     active: bool = True
-    expires_at: Optional[str] = None  # ISO datetime
+    expires_at: Optional[str] = None
     one_per_customer: bool = True
 
 @api_router.get("/admin/coupons")
@@ -487,7 +487,7 @@ async def admin_delete_coupon(code: str, _: dict = Depends(admin_required)):
 class EventIn(BaseModel):
     type: Literal["view_home", "view_product", "add_to_cart", "begin_checkout"]
     product_id: Optional[str] = None
-    session_id: Optional[str] = None  # anonymous client id
+    session_id: Optional[str] = None
 
 @api_router.post("/events")
 async def track_event(payload: EventIn, request: Request):

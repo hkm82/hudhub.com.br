@@ -73,7 +73,7 @@ export default function Checkout() {
           city: data.city || p.city,
           state: data.state || p.state,
         }));
-      } catch (_) {}
+      } catch (err) { console.warn("CEP lookup failed", err); }
     }
   }
 

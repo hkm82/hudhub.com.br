@@ -9,7 +9,7 @@ import { toast } from "sonner";
 export default function Admin() {
   const { user } = useAuth();
   const nav = useNavigate();
-  const [tab, setTab] = useState("overview"); // overview | orders | funnel | coupons
+  const [tab, setTab] = useState("overview");
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const [expanded, setExpanded] = useState(null);
@@ -110,7 +110,6 @@ export default function Admin() {
         ))}
       </div>
 
-      {/* OVERVIEW */}
       {tab === "overview" && stats && (
         <div className="grid sm:grid-cols-3 gap-3 mt-8">
           <div className="bg-[#16161A] border border-white/10 p-5">
@@ -131,7 +130,6 @@ export default function Admin() {
         </div>
       )}
 
-      {/* ORDERS */}
       {tab === "orders" && (
         <div className="mt-8 border border-white/10 overflow-x-auto">
           <table className="w-full text-sm">
@@ -196,7 +194,6 @@ export default function Admin() {
         </div>
       )}
 
-      {/* FUNNEL */}
       {tab === "funnel" && (
         <div className="mt-8 space-y-6">
           <div className="flex items-center gap-3">
@@ -217,7 +214,6 @@ export default function Admin() {
             <div className="text-zinc-500 p-8 text-center">Carregando funil...</div>
           ) : (
             <>
-              {/* KPIs */}
               <div className="grid sm:grid-cols-4 gap-3">
                 <div className="bg-[#16161A] border border-white/10 p-5">
                   <div className="small-caps text-zinc-400">Conv. geral</div>
@@ -239,7 +235,6 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* Funnel bars */}
               <div className="bg-[#16161A] border border-white/10 p-6">
                 <h3 className="heading text-xl mb-6">Funil de conversão</h3>
                 {(() => {
@@ -274,7 +269,6 @@ export default function Admin() {
                 <p className="mt-6 text-xs text-zinc-500">% à direita = taxa de conversão da etapa anterior. Conta sessões únicas (por browser).</p>
               </div>
 
-              {/* By edition */}
               <div className="grid sm:grid-cols-2 gap-3">
                 {["navigation", "alarms"].map((ed) => {
                   const e = funnel.by_edition[ed];
@@ -307,10 +301,8 @@ export default function Admin() {
         </div>
       )}
 
-      {/* COUPONS */}
       {tab === "coupons" && (
         <div className="mt-8 space-y-8">
-          {/* Create form */}
           <form onSubmit={createCoupon} className="bg-[#16161A] border border-white/10 p-6 space-y-5" data-testid="coupon-form">
             <h3 className="heading text-xl flex items-center gap-2"><Plus className="w-5 h-5 text-[#FF9500]" /> Novo cupom</h3>
             <div className="grid sm:grid-cols-2 gap-5">
@@ -361,7 +353,6 @@ export default function Admin() {
             </button>
           </form>
 
-          {/* List */}
           <div className="border border-white/10 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-[#1A1A1E] text-zinc-400 text-xs small-caps">
