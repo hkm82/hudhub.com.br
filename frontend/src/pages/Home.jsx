@@ -3,14 +3,12 @@ import { ArrowRight, ShieldCheck, Lock, Truck, Cpu, Gauge, Zap, MapPin, Bell, St
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { formatBRL } from "../lib/format";
-import { trackEvent } from "../lib/analytics";
 
 export default function Home() {
   const [products, setProducts] = useState([]);
 
   useEffect(() => {
     api.get("/products").then((r) => setProducts(r.data)).catch(() => {});
-    trackEvent("view_home");
   }, []);
 
   return (

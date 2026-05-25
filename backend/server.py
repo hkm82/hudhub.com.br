@@ -368,222 +368,34 @@ async def lookup_cep(cep: str):
         "state": data.get("uf", ""),
     }
 
-# --- Coupons (MongoDB-backed) ---
-DEFAULT_COUPONS = [
-    {"code": "BEMVINDO25", "type": "fixed", "amount_cents": 2500, "amount_percent": 0,
-     "description": "R$ 25 de desconto de boas-vindas",
-     "max_uses": 0, "uses": 0, "active": True, "expires_at": None,
-     "one_per_customer": True},
-]
-
-async def _seed_default_coupons():
-    for c in DEFAULT_COUPONS:
-        existing = await db.coupons.find_one({"code": c["code"]})
-        if not existing:
-            await db.coupons.insert_one({**c, "created_at": datetime.now(timezone.utc).isoformat()})
-
-async def _get_coupon(code: str) -> Optional[dict]:
-    return await db.coupons.find_one({"code": code.strip().upper()}, {"_id": 0})
+# --- Coupons ---
+COUPONS = {
+    "BEMVINDO25": {"code": "BEMVINDO25", "amount_cents": 2500, "description": "R$ 25 de desconto de boas-vindas"},
+}
 
 async def _user_used_coupon(user_id: str, code: str) -> bool:
     found = await db.orders.find_one({"user_id": user_id, "coupon_code": code})
     return found is not None
 
-def _coupon_is_valid(coupon: dict) -> Optional[str]:
-    if not coupon.get("active"):
-        return "Cupom desativado"
-    if coupon.get("expires_at"):
-        try:
-            exp = datetime.fromisoformat(coupon["expires_at"])
-            if exp.tzinfo is None:
-                exp = exp.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) > exp:
-                return "Cupom expirado"
-        except Exception:
-            pass
-    if coupon.get("max_uses") and coupon["max_uses"] > 0 and coupon.get("uses", 0) >= coupon["max_uses"]:
-        return "Cupom esgotado"
-    return None
-
-def _coupon_discount(coupon: dict, subtotal: int) -> int:
-    if coupon.get("type") == "percent":
-        return min(subtotal, round(subtotal * coupon.get("amount_percent", 0) / 100))
-    return min(subtotal, coupon.get("amount_cents", 0))
-
 @api_router.post("/coupons/validate")
 async def validate_coupon(payload: CouponValidateIn, user: dict = Depends(get_current_user)):
-    coupon = await _get_coupon(payload.code)
+    code = payload.code.strip().upper()
+    coupon = COUPONS.get(code)
     if not coupon:
         raise HTTPException(status_code=404, detail="Cupom inválido ou expirado")
-    err = _coupon_is_valid(coupon)
-    if err:
-        raise HTTPException(status_code=400, detail=err)
-    if coupon.get("one_per_customer") and await _user_used_coupon(user["id"], coupon["code"]):
+    if await _user_used_coupon(user["id"], code):
         raise HTTPException(status_code=400, detail="Você já utilizou este cupom")
     return coupon
-
-class CouponCreateIn(BaseModel):
-    code: str
-    type: Literal["fixed", "percent"] = "fixed"
-    amount_cents: int = 0
-    amount_percent: int = 0
-    description: str = ""
-    max_uses: int = 0  # 0 = unlimited
-    active: bool = True
-    expires_at: Optional[str] = None  # ISO datetime
-    one_per_customer: bool = True
-
-@api_router.get("/admin/coupons")
-async def admin_list_coupons(_: dict = Depends(admin_required)):
-    docs = await db.coupons.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
-    return docs
-
-@api_router.post("/admin/coupons")
-async def admin_create_coupon(payload: CouponCreateIn, _: dict = Depends(admin_required)):
-    code = payload.code.strip().upper()
-    if not code:
-        raise HTTPException(status_code=400, detail="Código obrigatório")
-    if await db.coupons.find_one({"code": code}):
-        raise HTTPException(status_code=409, detail="Já existe um cupom com esse código")
-    doc = {
-        "code": code,
-        "type": payload.type,
-        "amount_cents": payload.amount_cents,
-        "amount_percent": payload.amount_percent,
-        "description": payload.description.strip(),
-        "max_uses": payload.max_uses,
-        "uses": 0,
-        "active": payload.active,
-        "expires_at": payload.expires_at,
-        "one_per_customer": payload.one_per_customer,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.coupons.insert_one(doc)
-    doc.pop("_id", None)
-    return doc
-
-@api_router.patch("/admin/coupons/{code}")
-async def admin_update_coupon(code: str, payload: dict, _: dict = Depends(admin_required)):
-    code = code.strip().upper()
-    allowed = {"active", "description", "max_uses", "expires_at", "amount_cents", "amount_percent", "one_per_customer"}
-    update = {k: v for k, v in payload.items() if k in allowed}
-    if not update:
-        raise HTTPException(status_code=400, detail="Nenhum campo válido para atualizar")
-    res = await db.coupons.update_one({"code": code}, {"$set": update})
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Cupom não encontrado")
-    doc = await db.coupons.find_one({"code": code}, {"_id": 0})
-    return doc
-
-@api_router.delete("/admin/coupons/{code}")
-async def admin_delete_coupon(code: str, _: dict = Depends(admin_required)):
-    code = code.strip().upper()
-    res = await db.coupons.delete_one({"code": code})
-    if res.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Cupom não encontrado")
-    return {"ok": True}
-
-# --- Analytics events ---
-class EventIn(BaseModel):
-    type: Literal["view_home", "view_product", "add_to_cart", "begin_checkout"]
-    product_id: Optional[str] = None
-    session_id: Optional[str] = None  # anonymous client id
-
-@api_router.post("/events")
-async def track_event(payload: EventIn, request: Request):
-    user_id = None
-    token = request.cookies.get("access_token")
-    if token:
-        try:
-            pl = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALG])
-            user_id = pl.get("sub")
-        except Exception:
-            pass
-    doc = {
-        "id": str(uuid.uuid4()),
-        "type": payload.type,
-        "product_id": payload.product_id,
-        "session_id": payload.session_id or "anon",
-        "user_id": user_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.events.insert_one(doc)
-    return {"ok": True}
-
-@api_router.get("/admin/funnel")
-async def admin_funnel(days: int = 30, _: dict = Depends(admin_required)):
-    days = max(1, min(days, 365))
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-
-    async def _distinct_sessions(event_type: str, extra: Optional[dict] = None) -> int:
-        match = {"type": event_type, "created_at": {"$gte": since}}
-        if extra:
-            match.update(extra)
-        pipe = [{"$match": match}, {"$group": {"_id": "$session_id"}}, {"$count": "n"}]
-        out = await db.events.aggregate(pipe).to_list(1)
-        return out[0]["n"] if out else 0
-
-    home = await _distinct_sessions("view_home")
-    pv = await _distinct_sessions("view_product")
-    pv_nav = await _distinct_sessions("view_product", {"product_id": "hud-c3-navigation"})
-    pv_alarm = await _distinct_sessions("view_product", {"product_id": "hud-c3-alarms"})
-    cart = await _distinct_sessions("add_to_cart")
-    cart_nav = await _distinct_sessions("add_to_cart", {"product_id": "hud-c3-navigation"})
-    cart_alarm = await _distinct_sessions("add_to_cart", {"product_id": "hud-c3-alarms"})
-    begin_ck = await _distinct_sessions("begin_checkout")
-
-    orders = await db.orders.find({"created_at": {"$gte": since}}, {"_id": 0}).to_list(5000)
-    orders_count = len(orders)
-    paid_orders = [o for o in orders if o.get("status") == "pago"]
-    paid_count = len(paid_orders)
-    revenue = sum(o.get("total", 0) for o in paid_orders)
-    avg_ticket = round(revenue / paid_count) if paid_count else 0
-    coupons_used = sum(1 for o in orders if o.get("coupon_code"))
-    coupon_usage_rate = round((coupons_used / orders_count) * 100, 1) if orders_count else 0.0
-
-    orders_by_edition = {"navigation": 0, "alarms": 0}
-    for o in paid_orders:
-        for it in o.get("items", []):
-            ed = it.get("edition")
-            if ed in orders_by_edition:
-                orders_by_edition[ed] += it.get("quantity", 0)
-
-    def _pct(a: int, b: int) -> float:
-        return round((a / b) * 100, 1) if b else 0.0
-
-    return {
-        "days": days,
-        "since": since,
-        "funnel": [
-            {"key": "home", "label": "Visitas à home", "count": home, "conv_from_prev": None},
-            {"key": "product_view", "label": "Visitas a produto", "count": pv, "conv_from_prev": _pct(pv, home)},
-            {"key": "add_to_cart", "label": "Adicionados ao carrinho", "count": cart, "conv_from_prev": _pct(cart, pv)},
-            {"key": "begin_checkout", "label": "Checkout iniciado", "count": begin_ck, "conv_from_prev": _pct(begin_ck, cart)},
-            {"key": "orders", "label": "Pedidos criados", "count": orders_count, "conv_from_prev": _pct(orders_count, begin_ck)},
-            {"key": "paid", "label": "Pedidos pagos", "count": paid_count, "conv_from_prev": _pct(paid_count, orders_count)},
-        ],
-        "overall_conversion_pct": _pct(paid_count, home),
-        "by_edition": {
-            "navigation": {"views": pv_nav, "carts": cart_nav, "units_sold": orders_by_edition["navigation"]},
-            "alarms": {"views": pv_alarm, "carts": cart_alarm, "units_sold": orders_by_edition["alarms"]},
-        },
-        "revenue_cents": revenue,
-        "avg_ticket_cents": avg_ticket,
-        "coupons_used": coupons_used,
-        "coupon_usage_rate_pct": coupon_usage_rate,
-    }
 
 # --- Orders ---
 async def _resolve_coupon(user_id: Optional[str], code: Optional[str]) -> Optional[dict]:
     if not code:
         return None
-    coupon = await _get_coupon(code)
+    code = code.strip().upper()
+    coupon = COUPONS.get(code)
     if not coupon:
         raise HTTPException(status_code=400, detail="Cupom inválido")
-    err = _coupon_is_valid(coupon)
-    if err:
-        raise HTTPException(status_code=400, detail=err)
-    if user_id and coupon.get("one_per_customer") and await _user_used_coupon(user_id, coupon["code"]):
+    if user_id and await _user_used_coupon(user_id, code):
         raise HTTPException(status_code=400, detail="Você já utilizou este cupom")
     return coupon
 
@@ -607,7 +419,7 @@ def _compute_total(items: List[CartItemIn], payment_method: str, coupon: Optiona
         })
     coupon_discount = 0
     if coupon:
-        coupon_discount = _coupon_discount(coupon, subtotal)
+        coupon_discount = min(coupon["amount_cents"], subtotal)
     after_coupon = subtotal - coupon_discount
     pix_discount = 0
     if payment_method == "pix":
@@ -815,10 +627,6 @@ logger = logging.getLogger(__name__)
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.orders.create_index("user_id")
-    await db.coupons.create_index("code", unique=True)
-    await db.events.create_index("created_at")
-    await db.events.create_index("type")
-    await _seed_default_coupons()
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@autovisor.com.br")
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@AutoVisor2026")

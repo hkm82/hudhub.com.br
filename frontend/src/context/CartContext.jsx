@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 const CartCtx = createContext(null);
 const KEY = "autovisor_cart_v1";
@@ -10,8 +10,8 @@ export function CartProvider({ children }) {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) setItems(JSON.parse(raw));
-    } catch (err) {
-      console.warn("Failed to read cart from storage", err);
+    } catch (_) {
+      // ignore
     }
   }, []);
 
@@ -60,12 +60,11 @@ export function CartProvider({ children }) {
   const subtotal = items.reduce((acc, it) => acc + it.unit_price * it.quantity, 0);
   const count = items.reduce((acc, it) => acc + it.quantity, 0);
 
-  const value = useMemo(
-    () => ({ items, addItem, updateQty, removeItem, clear, subtotal, count }),
-    [items, subtotal, count]
+  return (
+    <CartCtx.Provider value={{ items, addItem, updateQty, removeItem, clear, subtotal, count }}>
+      {children}
+    </CartCtx.Provider>
   );
-
-  return <CartCtx.Provider value={value}>{children}</CartCtx.Provider>;
 }
 
 export const useCart = () => useContext(CartCtx);

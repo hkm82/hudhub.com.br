@@ -8,11 +8,11 @@ import pytest
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://dual-product-store.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@autovisor.com.br")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@AutoVisor2026")
+ADMIN_EMAIL = "admin@autovisor.com.br"
+ADMIN_PASSWORD = "Admin@AutoVisor2026"
 
 CUSTOMER_EMAIL = f"TEST_cliente_{uuid.uuid4().hex[:8]}@example.com"
-CUSTOMER_PASSWORD = os.environ.get("TEST_CUSTOMER_PASSWORD", "Teste@2026")
+CUSTOMER_PASSWORD = "Teste@2026"
 VALID_CPF = "390.533.447-05"
 
 

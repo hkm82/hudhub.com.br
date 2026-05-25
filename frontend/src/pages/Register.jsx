@@ -37,7 +37,7 @@ export default function Register() {
           address_city: data.city || p.address_city,
           address_state: data.state || p.address_state,
         }));
-      } catch (err) { console.warn("CEP lookup failed", err); } finally { setCepLoading(false); }
+      } catch (_) {} finally { setCepLoading(false); }
     }
   }
 

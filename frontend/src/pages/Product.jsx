@@ -5,7 +5,6 @@ import { formatBRL } from "../lib/format";
 import { useCart } from "../context/CartContext";
 import { ShoppingCart, ShieldCheck, Truck, RotateCcw, Lock, Star, Check, Minus, Plus, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { trackEvent } from "../lib/analytics";
 
 export default function Product() {
   const { id } = useParams();
@@ -18,7 +17,6 @@ export default function Product() {
   useEffect(() => {
     setActiveImg(0);
     api.get(`/products/${id}`).then((r) => setProduct(r.data)).catch(() => setProduct(false));
-    trackEvent("view_product", id);
   }, [id]);
 
   if (product === null) {
@@ -35,7 +33,6 @@ export default function Product() {
 
   function handleAdd(buyNow = false) {
     addItem(product, qty);
-    trackEvent("add_to_cart", product.id);
     toast.success("Adicionado ao carrinho", { description: product.name });
     if (buyNow) nav("/carrinho");
   }
