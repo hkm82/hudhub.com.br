@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api, formatApiError } from "../lib/api";
 
 const AuthCtx = createContext(null);
@@ -44,11 +44,12 @@ export function AuthProvider({ children }) {
     setUser(false);
   }
 
-  return (
-    <AuthCtx.Provider value={{ user, error, login, register, logout }}>
-      {children}
-    </AuthCtx.Provider>
+  const value = useMemo(
+    () => ({ user, error, login, register, logout }),
+    [user, error]
   );
+
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
 
 export const useAuth = () => useContext(AuthCtx);
