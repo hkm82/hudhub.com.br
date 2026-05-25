@@ -98,11 +98,14 @@ export default function Product() {
           <div className="mt-8 p-6 bg-[#16161A] border border-white/10">
             <span className="text-xs text-zinc-500 line-through mono">De {formatBRL(product.compare_price)}</span>
             <div className="flex items-baseline gap-3 mt-1">
-              <span className="heading text-4xl font-medium">{formatBRL(product.price)}</span>
+              <span className="heading text-4xl font-medium">{formatBRL(product.display_price ?? product.price)}</span>
               <span className="text-sm text-zinc-400">no cartão em até 12x</span>
             </div>
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-pix/10 text-pix border border-pix/30 text-sm mono">
-              ou {formatBRL(Math.round(product.price * 0.95))} no PIX (-5%)
+            <div className="mt-2 text-xs text-zinc-500">
+              + taxa de importação {formatBRL(product.import_tax_cents ?? 0)} adicionada no carrinho
+            </div>
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-pix/10 text-pix border border-pix/30 text-sm mono">
+              5% OFF no PIX
             </div>
           </div>
 
