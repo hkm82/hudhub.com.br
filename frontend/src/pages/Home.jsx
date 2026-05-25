@@ -1,17 +1,27 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, ShieldCheck, Lock, Truck, Cpu, Gauge, Zap, MapPin, Bell, Star, CheckCircle2 } from "lucide-react";
+import { ArrowRight, ShieldCheck, Lock, Truck, Cpu, Gauge, Zap, MapPin, Bell, Star, CheckCircle2, Gift } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { formatBRL } from "../lib/format";
 import { trackEvent } from "../lib/analytics";
+import { useCart } from "../context/CartContext";
+import { toast } from "sonner";
 
 export default function Home() {
   const [products, setProducts] = useState([]);
+  const { pendingCoupon, setPendingCoupon } = useCart();
 
   useEffect(() => {
     api.get("/products").then((r) => setProducts(r.data)).catch(() => {});
     trackEvent("view_home");
   }, []);
+
+  function claimCoupon() {
+    setPendingCoupon("BEMVINDO25");
+    toast.success("Cupom adicionado!", {
+      description: "R$ 25 OFF — será aplicado automaticamente no checkout.",
+    });
+  }
 
   return (
     <div className="grain">
@@ -54,10 +64,23 @@ export default function Home() {
 
       {/* Coupon promo strip */}
       <div className="border-y border-[#FF9500]/30 bg-[#FF9500]/5">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-3 text-sm flex items-center justify-center gap-3 flex-wrap text-zinc-200">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 text-sm flex items-center justify-center gap-3 flex-wrap text-zinc-200">
           <span className="inline-flex items-center gap-2"><span className="w-2 h-2 bg-[#FF9500] rounded-full animate-pulse" /> Cupom de boas-vindas:</span>
           <span className="mono font-bold text-[#FF9500] px-2 py-0.5 border border-[#FF9500]/40">BEMVINDO25</span>
-          <span className="text-zinc-300">— R$ 25 OFF na sua primeira compra · cumula com PIX (-5%)</span>
+          <span className="text-zinc-300">— R$ 25 OFF na sua 1ª compra · cumula com PIX (-5%)</span>
+          {pendingCoupon === "BEMVINDO25" ? (
+            <span data-testid="coupon-claimed-badge" className="inline-flex items-center gap-1 mono text-xs text-[#32D74B] border border-[#32D74B]/40 px-2 py-1">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Cupom adicionado
+            </span>
+          ) : (
+            <button
+              data-testid="claim-coupon-btn"
+              onClick={claimCoupon}
+              className="inline-flex items-center gap-2 btn-primary px-4 py-2 rounded-sm text-sm"
+            >
+              <Gift className="w-4 h-4" /> Resgatar R$ 25 OFF
+            </button>
+          )}
         </div>
       </div>
 
@@ -112,8 +135,8 @@ export default function Home() {
                 <div className="flex items-end justify-between mt-6">
                   <div>
                     <span className="text-xs text-zinc-500 line-through mono">{formatBRL(p.compare_price)}</span>
-                    <div className="heading text-3xl font-medium">{formatBRL(p.price)}</div>
-                    <div className="text-xs text-pix mono mt-1">{formatBRL(Math.round(p.price * 0.95))} no PIX (-5%)</div>
+                    <div className="heading text-3xl font-medium">{formatBRL(p.display_price ?? p.price)}</div>
+                    <div className="text-xs text-zinc-500 mt-1">+ taxa de importação no carrinho</div>
                   </div>
                   <span className="text-sm text-[#FF9500] flex items-center gap-1 group-hover:gap-3 transition-all">
                     Ver detalhes <ArrowRight className="w-4 h-4" />

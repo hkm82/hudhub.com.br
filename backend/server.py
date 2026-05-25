@@ -5,6 +5,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os
 import uuid
+import secrets
 import asyncio
 import logging
 import bcrypt
@@ -85,7 +86,11 @@ class UserOut(BaseModel):
     address_state: str
     birth_date: Optional[str] = None
     role: str
+    email_verified: bool = False
     created_at: str
+
+class VerifyEmailIn(BaseModel):
+    token: str
 
 class CartItemIn(BaseModel):
     product_id: str
@@ -146,6 +151,55 @@ async def admin_required(user: dict = Depends(get_current_user)) -> dict:
         raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
     return user
 
+def _get_frontend_url() -> str:
+    return os.environ.get("FRONTEND_URL", "https://hudhub.com.br").rstrip("/")
+
+def _build_verify_email_html(full_name: str, verify_url: str) -> str:
+    return f"""<!doctype html>
+<html><body style="margin:0;padding:0;background:#f5f5f7;font-family:Arial,sans-serif;color:#1c1c1e;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f7;padding:24px 0;">
+<tr><td align="center">
+  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e5e7;">
+    <tr><td style="background:#0F0F12;padding:24px;">
+      <span style="color:#FF9500;font-size:22px;font-weight:700;">AutoVisor.</span>
+    </td></tr>
+    <tr><td style="padding:32px;">
+      <h1 style="margin:0;font-size:24px;color:#1c1c1e;">Confirme seu e-mail</h1>
+      <p style="color:#525252;line-height:1.6;">Olá {full_name}, falta só uma etapa para concluir seu cadastro. Clique no botão abaixo para confirmar que este é o seu e-mail.</p>
+      <p style="margin:32px 0;">
+        <a href="{verify_url}" style="display:inline-block;padding:14px 28px;background:#FF9500;color:#0F0F12;text-decoration:none;font-weight:700;">Confirmar meu e-mail</a>
+      </p>
+      <p style="color:#71717a;font-size:13px;line-height:1.6;">Se o botão não funcionar, copie e cole este link no navegador:<br/>
+        <span style="word-break:break-all;color:#3b3b3f;">{verify_url}</span>
+      </p>
+      <p style="color:#a1a1aa;font-size:12px;margin-top:24px;">Se você não criou conta na AutoVisor, ignore este e-mail.</p>
+    </td></tr>
+    <tr><td style="background:#0F0F12;padding:20px 32px;color:#a1a1aa;font-size:12px;">
+      AutoVisor Tecnologia LTDA · contato@autovisor.com.br
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body></html>"""
+
+async def _send_verify_email(email: str, full_name: str, token: str) -> None:
+    api_key = os.environ.get("RESEND_API_KEY", "").strip()
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    verify_url = f"{_get_frontend_url()}/confirmar-email/{token}"
+    html = _build_verify_email_html(full_name, verify_url)
+    subject = "AutoVisor — Confirme seu e-mail"
+    if not api_key:
+        logger.info("[VERIFY EMAIL MOCK] to=%s url=%s", email, verify_url)
+        return
+    try:
+        resend.api_key = api_key
+        await asyncio.to_thread(resend.Emails.send, {
+            "from": sender, "to": [email], "subject": subject, "html": html,
+        })
+        logger.info("[VERIFY EMAIL SENT] to=%s", email)
+    except Exception as e:
+        logger.error("[VERIFY EMAIL ERROR] %s", e)
+
 # --- Auth endpoints ---
 @api_router.post("/auth/register", response_model=UserOut)
 async def register(payload: RegisterIn, response: Response):
@@ -154,6 +208,7 @@ async def register(payload: RegisterIn, response: Response):
     if existing:
         raise HTTPException(status_code=409, detail="Este e-mail já está cadastrado")
     user_id = str(uuid.uuid4())
+    verification_token = secrets.token_urlsafe(32)
     doc = {
         "id": user_id,
         "email": email,
@@ -170,12 +225,16 @@ async def register(payload: RegisterIn, response: Response):
         "address_state": payload.address_state.strip(),
         "birth_date": payload.birth_date or "",
         "role": "customer",
+        "email_verified": False,
+        "verification_token": verification_token,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
     token = create_access_token(user_id, email, "customer")
     set_auth_cookie(response, token)
+    asyncio.create_task(_send_verify_email(email, doc["full_name"], verification_token))
     doc.pop("password_hash", None)
+    doc.pop("verification_token", None)
     doc.pop("_id", None)
     return doc
 
@@ -188,6 +247,8 @@ async def login(payload: LoginIn, response: Response):
     token = create_access_token(user["id"], user["email"], user.get("role", "customer"))
     set_auth_cookie(response, token)
     user.pop("password_hash", None)
+    user.pop("verification_token", None)
+    user.setdefault("email_verified", False)
     return user
 
 @api_router.post("/auth/logout")
@@ -197,7 +258,35 @@ async def logout(response: Response):
 
 @api_router.get("/auth/me", response_model=UserOut)
 async def me(user: dict = Depends(get_current_user)):
+    user.setdefault("email_verified", False)
+    user.pop("verification_token", None)
     return user
+
+@api_router.post("/auth/verify-email", response_model=UserOut)
+async def verify_email(payload: VerifyEmailIn, response: Response):
+    user = await db.users.find_one({"verification_token": payload.token}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Link de confirmação inválido ou expirado")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"email_verified": True}, "$unset": {"verification_token": ""}}
+    )
+    # Re-auth so the cookie reflects verified user
+    new_token = create_access_token(user["id"], user["email"], user.get("role", "customer"))
+    set_auth_cookie(response, new_token)
+    user["email_verified"] = True
+    user.pop("password_hash", None)
+    user.pop("verification_token", None)
+    return user
+
+@api_router.post("/auth/resend-verification")
+async def resend_verification(user: dict = Depends(get_current_user)):
+    if user.get("email_verified"):
+        return {"ok": True, "already_verified": True}
+    token = secrets.token_urlsafe(32)
+    await db.users.update_one({"id": user["id"]}, {"$set": {"verification_token": token}})
+    asyncio.create_task(_send_verify_email(user["email"], user.get("full_name", ""), token))
+    return {"ok": True}
 
 # --- Products ---
 PRODUCTS = [
@@ -207,7 +296,9 @@ PRODUCTS = [
         "name": "HUD C3 — Edição Navegação",
         "tagline": "GPS + OBD com navegação inteligente e alerta de velocidade por IA",
         "edition": "navigation",
-        "price": 42500,  # cents
+        "price": 42500,  # full price (display + import tax)
+        "display_price": 35700,  # shown on store/cards (= price - import_tax)
+        "import_tax_cents": 6800,  # R$ 68 import tax
         "compare_price": 59900,
         "stock": 25,
         "rating": 4.8,
@@ -261,6 +352,8 @@ PRODUCTS = [
         "tagline": "Monitoramento completo do veículo com 6 alarmes inteligentes",
         "edition": "alarms",
         "price": 42500,
+        "display_price": 35700,
+        "import_tax_cents": 6800,
         "compare_price": 59900,
         "stock": 30,
         "rating": 4.9,
@@ -588,23 +681,31 @@ async def _resolve_coupon(user_id: Optional[str], code: Optional[str]) -> Option
     return coupon
 
 def _compute_total(items: List[CartItemIn], payment_method: str, coupon: Optional[dict] = None) -> dict:
-    subtotal = 0
+    products_total = 0  # sum of display_price * qty
+    import_tax_total = 0  # sum of import_tax_cents * qty
     detailed = []
     for it in items:
         p = PRODUCTS_BY_ID.get(it.product_id)
         if not p:
             raise HTTPException(status_code=400, detail=f"Produto inválido: {it.product_id}")
-        line = p["price"] * it.quantity
-        subtotal += line
+        display_price = p.get("display_price", p["price"])
+        import_tax = p.get("import_tax_cents", 0)
+        line_products = display_price * it.quantity
+        line_tax = import_tax * it.quantity
+        products_total += line_products
+        import_tax_total += line_tax
         detailed.append({
             "product_id": p["id"],
             "name": p["name"],
             "edition": p["edition"],
             "unit_price": p["price"],
+            "display_price": display_price,
+            "import_tax_cents": import_tax,
             "quantity": it.quantity,
-            "line_total": line,
+            "line_total": line_products + line_tax,
             "image": p["images"][0],
         })
+    subtotal = products_total + import_tax_total  # = R$ 425 per unit
     coupon_discount = 0
     if coupon:
         coupon_discount = _coupon_discount(coupon, subtotal)
@@ -617,6 +718,8 @@ def _compute_total(items: List[CartItemIn], payment_method: str, coupon: Optiona
     total = subtotal - discount + shipping
     return {
         "items": detailed,
+        "products_total": products_total,
+        "import_tax_total": import_tax_total,
         "subtotal": subtotal,
         "coupon_discount": coupon_discount,
         "pix_discount": pix_discount,
@@ -739,6 +842,8 @@ async def create_order(payload: OrderCreateIn, user: dict = Depends(get_current_
         "user_id": user["id"],
         "user_email": user["email"],
         "items": totals["items"],
+        "products_total": totals["products_total"],
+        "import_tax_total": totals["import_tax_total"],
         "subtotal": totals["subtotal"],
         "coupon_code": coupon["code"] if coupon else None,
         "coupon_discount": totals["coupon_discount"],
