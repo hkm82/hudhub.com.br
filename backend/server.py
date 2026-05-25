@@ -799,9 +799,22 @@ async def root():
 
 app.include_router(api_router)
 
+# Build CORS allow-list: FRONTEND_URL + CORS_ORIGINS env (comma-separated) + localhost.
+_cors_env = os.environ.get("CORS_ORIGINS", "")
+_extra_origins = [o.strip() for o in _cors_env.split(",") if o.strip() and o.strip() != "*"]
+_allow_origins = list({
+    *(o for o in [os.environ.get("FRONTEND_URL", "")] if o),
+    *_extra_origins,
+    "http://localhost:3000",
+})
+# Production domains baked in so they keep working even if env wasn't updated
+for _o in ("https://hudhub.com.br", "https://www.hudhub.com.br"):
+    if _o not in _allow_origins:
+        _allow_origins.append(_o)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "*"), "http://localhost:3000"],
+    allow_origins=_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

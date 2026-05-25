@@ -1,7 +1,27 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API = `${BACKEND_URL}/api`;
+// Resolve API base URL:
+// - Use REACT_APP_BACKEND_URL when present (preview / dev).
+// - Otherwise (and when the configured URL doesn't match the current host),
+//   fall back to the same-origin "/api" so the production domain talks to its
+//   own backend without cross-origin CORS issues.
+function resolveApiBase() {
+  const configured = process.env.REACT_APP_BACKEND_URL;
+  if (typeof window !== "undefined" && configured) {
+    try {
+      const u = new URL(configured);
+      if (u.host !== window.location.host) {
+        return "/api"; // same-origin fallback for production deploys
+      }
+    } catch (_) {
+      return "/api";
+    }
+  }
+  if (!configured) return "/api";
+  return `${configured}/api`;
+}
+
+export const API = resolveApiBase();
 
 export const api = axios.create({
   baseURL: API,
